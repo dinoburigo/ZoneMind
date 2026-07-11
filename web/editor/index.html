@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1.0">
+
+  <title>ZoneMind - Test barcode</title>
+
+  <script src="https://unpkg.com/html5-qrcode"></script>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 16px;
+    }
+
+    button {
+      padding: 12px 18px;
+      font-size: 16px;
+      margin-right: 8px;
+      margin-bottom: 12px;
+    }
+
+    #reader {
+      width: 100%;
+      max-width: 500px;
+      margin-top: 15px;
+    }
+
+    #risultato {
+      margin-top: 20px;
+      padding: 12px;
+      border: 1px solid #ccc;
+      background: #f5f5f5;
+      word-break: break-all;
+    }
+
+    #errore {
+      margin-top: 15px;
+      color: #b00020;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+
+<body>
+
+<h2>ZoneMind – Test lettore barcode</h2>
+
+<button onclick="avviaScanner()">Avvia scanner</button>
+<button onclick="fermaScanner()">Ferma scanner</button>
+
+<div id="reader"></div>
+
+<div id="risultato">
+  Barcode letto: -
+</div>
+
+<div id="errore"></div>
+
+<script>
+  let scanner = null;
+  let scannerAttivo = false;
+
+  async function avviaScanner() {
+    const errore = document.getElementById("errore");
+    errore.textContent = "";
+
+    if (!window.isSecureContext) {
+      errore.textContent =
+        "La pagina non è aperta in un contesto sicuro.\n" +
+        "Indirizzo corrente: " + window.location.href + "\n" +
+        "Protocollo: " + window.location.protocol;
+      return;
+    }
+
+    if (!navigator.mediaDevices ||
+        !navigator.mediaDevices.getUserMedia) {
+      errore.textContent =
+        "La fotocamera non è accessibile da questo browser o da questa modalità di apertura.";
+      return;
+    }
+
+    try {
+      if (!scanner) {
+        scanner = new Html5Qrcode("reader");
+      }
+
+      const configurazione = {
+        fps: 10,
+        qrbox: {
+          width: 280,
+          height: 140
+        },
+        aspectRatio: 1.7778,
+        formatsToSupport: [
+          Html5QrcodeSupportedFormats.EAN_13,
+          Html5QrcodeSupportedFormats.EAN_8,
+          Html5QrcodeSupportedFormats.CODE_128,
+          Html5QrcodeSupportedFormats.CODE_39,
+          Html5QrcodeSupportedFormats.UPC_A,
+          Html5QrcodeSupportedFormats.UPC_E
+        ]
+      };
+
+      await scanner.start(
+        {
+          facingMode: {
+            exact: "environment"
+          }
+        },
+        configurazione,
+        barcodeLetto,
+        () => {
+          // Gli errori durante la ricerca del barcode
+          // sono normali e non vengono visualizzati.
+        }
+      );
+
+      scannerAttivo = true;
+
+    } catch (error) {
+      console.error(error);
+
+      // Alcuni telefoni non accettano "exact".
+      try {
+        await scanner.start(
+          { facingMode: "environment" },
+          configurazione,
+          barcodeLetto,
+          () => {}
+        );
+
+        scannerAttivo = true;
+
+      } catch (secondoErrore) {
+        console.error(secondoErrore);
+
+        errore.textContent =
+          "Impossibile avviare la fotocamera.\n\n" +
+          "Errore: " +
+          (secondoErrore.message || secondoErrore);
+      }
+    }
+  }
+
+  async function barcodeLetto(testo, risultatoCompleto) {
+    document.getElementById("risultato").innerHTML =
+      "<strong>Barcode letto:</strong><br>" +
+      testo;
+
+    console.log("Barcode:", testo);
+    console.log("Dettagli:", risultatoCompleto);
+
+    await fermaScanner();
+  }
+
+  async function fermaScanner() {
+    if (!scanner || !scannerAttivo) {
+      return;
+    }
+
+    try {
+      await scanner.stop();
+      scanner.clear();
+    } catch (error) {
+      console.error("Errore arresto scanner:", error);
+    } finally {
+      scannerAttivo = false;
+    }
+  }
+</script>
+
+</body>
+</html>

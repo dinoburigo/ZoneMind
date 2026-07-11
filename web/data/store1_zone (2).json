@@ -1,0 +1,50 @@
+{
+  "negozio": "Store 1",
+  "immagine": "planimetria.png",
+  "larghezza": 900,
+  "altezza": 700,
+  "zone": [
+    {
+      "codice": "A01",
+      "x": 353,
+      "y": 93,
+      "width": 118,
+      "height": 69
+    },
+    {
+      "codice": "A02",
+      "x": 349,
+      "y": 202,
+      "width": 123,
+      "height": 36
+    },
+    {
+      "codice": "A03",
+      "x": 718,
+      "y": 89,
+      "width": 62,
+      "height": 199
+    },
+    {
+      "codice": "A04",
+      "x": 316,
+      "y": 293,
+      "width": 193,
+      "height": 92
+    },
+    {
+      "codice": "A05",
+      "x": 156,
+      "y": 457,
+      "width": 366,
+      "height": 32
+    },
+    {
+      "codice": "A06",
+      "x": 45,
+      "y": 270,
+      "width": 68,
+      "height": 139
+    }
+  ]
+}
