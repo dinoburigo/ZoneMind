@@ -56,15 +56,32 @@ ZoneMind nasce per consentire:
 
 ---
 
+
 ## Stato del progetto
 
-Versione corrente
+**Versione:** 0.1.0 - Foundation
 
-**0.1.0 - Foundation**
+### Completato
 
-Stato
+- Repository GitHub
+- GitHub Pages
+- Struttura del progetto
+- Editor grafico delle zone
+- Import / Export JSON
+- Primo prototipo Mapper Mobile
+- Persistenza locale con IndexedDB
+- Test su smartphone
 
-🟢 In sviluppo
+### In corso
+
+- Scanner barcode
+- Associazione articolo ↔ zona
+
+### Prossimo obiettivo
+
+Realizzare il primo flusso completo:
+
+Zona → Barcode → Articolo → Associazione
 
 ---
 
