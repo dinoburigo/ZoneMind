@@ -36,7 +36,7 @@ async function initialize() {
 
 async function loadBarcodeData() {
   const response = await fetch(
-    "../data/barcode-articles-demo.json"
+    "./data/barcode-articles-demo.json"
   );
 
   if (!response.ok) {
@@ -48,7 +48,7 @@ async function loadBarcodeData() {
 }
 
 async function loadLayout() {
-  const response = await fetch("../data/layout-demo.json");
+  const response = await fetch("./data/layout-demo.json");
 
   if (!response.ok) {
     throw new Error("Layout non disponibile");
