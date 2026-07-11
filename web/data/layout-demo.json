@@ -1,0 +1,31 @@
+{
+  "storeCode": "STORE001",
+  "layoutId": "LAYOUT001",
+  "layoutCode": "DEMO",
+  "zones": [
+    {
+      "zoneId": "ZONE-A01",
+      "zoneCode": "A01",
+      "description": "Zona A01",
+      "monitoringEnabled": true,
+      "geometry": {
+        "x": 40,
+        "y": 50,
+        "width": 250,
+        "height": 180
+      }
+    },
+    {
+      "zoneId": "ZONE-A02",
+      "zoneCode": "A02",
+      "description": "Zona A02",
+      "monitoringEnabled": true,
+      "geometry": {
+        "x": 320,
+        "y": 50,
+        "width": 250,
+        "height": 180
+      }
+    }
+  ]
+}

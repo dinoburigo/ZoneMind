@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  >
+
+  <title>ZoneMind Mapper</title>
+
+  <link rel="stylesheet" href="../assets/css/mapper.css">
+
+  <script src="https://unpkg.com/html5-qrcode"></script>
+</head>
+
+<body>
+
+<header>
+  <h1>ZoneMind Mapper</h1>
+  <div id="storeInfo">Caricamento...</div>
+</header>
+
+<main>
+  <section>
+    <h2>Seleziona zona</h2>
+    <div id="zoneList"></div>
+  </section>
+
+  <section id="scannerPanel" hidden>
+    <h2 id="scannerTitle">Scanner</h2>
+
+    <div id="reader"></div>
+
+    <button id="closeScannerButton">
+      Chiudi scanner
+    </button>
+  </section>
+
+  <section>
+    <h2>Ultima operazione</h2>
+    <div id="message">Nessuna operazione</div>
+  </section>
+
+  <section>
+    <h2>Associazioni locali</h2>
+    <div id="assignmentList"></div>
+  </section>
+</main>
+
+<script type="module" src="../assets/js/mapper.js"></script>
+
+</body>
+</html>
