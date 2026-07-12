@@ -154,7 +154,7 @@ async function startScanner() {
     Html5QrcodeSupportedFormats.EAN_8,
     Html5QrcodeSupportedFormats.CODE_128
   ]
-}
+},
       handleBarcode,
       () => {
         // Gli errori di mancata lettura durante
