@@ -33,15 +33,32 @@
 
     <div id="reader"></div>
 
-    <button id="closeScannerButton">
-      Chiudi scanner
-    </button>
+	<div class="scanner-actions">
+	  <button id="changeZoneButton">
+		Cambia zona
+	  </button>
+	</div>
   </section>
 
-  <section>
-    <h2>Ultima operazione</h2>
-    <div id="message">Nessuna operazione</div>
-  </section>
+<section>
+  <h2>Sessione corrente</h2>
+
+  <div id="sessionSummary">
+    <span>
+      Associati:
+      <strong id="associatedCount">0</strong>
+    </span>
+
+    <span>
+      Anomalie:
+      <strong id="unresolvedCount">0</strong>
+    </span>
+  </div>
+
+  <div id="message">
+    Seleziona una zona per iniziare
+  </div>
+</section>
 
   <section>
     <h2>Associazioni locali</h2>

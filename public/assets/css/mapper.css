@@ -72,3 +72,46 @@ button {
 .error {
   color: #b00020;
 }
+
+.scanner-actions {
+  margin-top: 12px;
+}
+
+#changeZoneButton {
+  width: 100%;
+  border: 0;
+  border-radius: 8px;
+  background: #37474f;
+  color: white;
+  font-weight: bold;
+}
+
+#sessionSummary {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 12px;
+  padding: 12px;
+  background: #f5f5f5;
+  border-radius: 8px;
+}
+
+#message {
+  min-height: 24px;
+  padding: 10px;
+  border-radius: 6px;
+}
+
+#message.success {
+  background: #e8f5e9;
+  color: #146c2e;
+}
+
+#message.warning {
+  background: #fff8e1;
+  color: #8a6500;
+}
+
+#message.error {
+  background: #ffebee;
+  color: #b00020;
+}

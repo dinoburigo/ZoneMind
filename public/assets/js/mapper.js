@@ -3,13 +3,24 @@ import {
   findArticleByEan,
   getAssignmentByArticle,
   saveAssignment,
-  getAllAssignments
+  getAllAssignments,
+  saveUnresolvedBarcode
 } from "./db.js";
 
 let layout = null;
 let selectedZone = null;
+
 let scanner = null;
 let scannerRunning = false;
+let barcodeProcessing = false;
+
+let associatedCount = 0;
+let unresolvedCount = 0;
+
+let lastScannedEan = null;
+let lastScanTime = 0;
+
+const DUPLICATE_SCAN_INTERVAL = 1500;
 
 document.addEventListener("DOMContentLoaded", initialize);
 
@@ -17,12 +28,13 @@ async function initialize() {
   try {
     await loadBarcodeData();
     await loadLayout();
+
     renderZones();
     await renderAssignments();
 
     document
-      .getElementById("closeScannerButton")
-      .addEventListener("click", stopScanner);
+      .getElementById("changeZoneButton")
+      .addEventListener("click", changeZone);
 
   } catch (error) {
     showMessage(
@@ -48,7 +60,9 @@ async function loadBarcodeData() {
 }
 
 async function loadLayout() {
-  const response = await fetch("./data/layout-demo.json");
+  const response = await fetch(
+    "./data/layout-demo.json"
+  );
 
   if (!response.ok) {
     throw new Error("Layout non disponibile");
@@ -72,36 +86,55 @@ function renderZones() {
       button.className = "zone-button";
       button.textContent = zone.zoneCode;
 
-      button.addEventListener("click", () => {
-        selectedZone = zone;
-        startScanner();
+      button.addEventListener("click", async () => {
+        await selectZone(zone);
       });
 
       container.appendChild(button);
     });
 }
 
-async function startScanner() {
-  if (!selectedZone) {
-    return;
-  }
+async function selectZone(zone) {
+  selectedZone = zone;
 
+  associatedCount = 0;
+  unresolvedCount = 0;
+  updateSessionSummary();
+
+  document.getElementById("zoneList").hidden = true;
   document.getElementById("scannerPanel").hidden = false;
 
   document.getElementById("scannerTitle").textContent =
-    `Scanner per zona ${selectedZone.zoneCode}`;
+    `Zona ${selectedZone.zoneCode} - Scansiona gli articoli`;
+
+  showMessage(
+    `Zona ${selectedZone.zoneCode} selezionata`,
+    "success"
+  );
+
+  await startScanner();
+}
+
+async function startScanner() {
+  if (!selectedZone || scannerRunning) {
+    return;
+  }
 
   scanner = new Html5Qrcode("reader");
 
   try {
     await scanner.start(
-      { facingMode: "environment" },
+      {
+        facingMode: "environment"
+      },
       {
         fps: 10,
+
         qrbox: {
           width: 280,
           height: 140
         },
+
         formatsToSupport: [
           Html5QrcodeSupportedFormats.EAN_13,
           Html5QrcodeSupportedFormats.EAN_8,
@@ -109,7 +142,10 @@ async function startScanner() {
         ]
       },
       handleBarcode,
-      () => {}
+      () => {
+        // Gli errori di mancata lettura durante
+        // l'inquadratura sono normali.
+      }
     );
 
     scannerRunning = true;
@@ -119,64 +155,142 @@ async function startScanner() {
       `Impossibile avviare la fotocamera: ${error}`,
       "error"
     );
+
+    console.error(error);
   }
 }
 
 async function handleBarcode(ean) {
-  await stopScanner();
-
-  const barcodeRecord = await findArticleByEan(ean);
-
-  if (!barcodeRecord) {
-    showMessage(
-      `EAN ${ean} non riconosciuto`,
-      "error"
-    );
-
+  if (!selectedZone || barcodeProcessing) {
     return;
   }
 
-  const existingAssignment =
-    await getAssignmentByArticle(
-      barcodeRecord.articleCode
-    );
+  if (isRepeatedCameraReading(ean)) {
+    return;
+  }
 
-  if (!existingAssignment) {
+  barcodeProcessing = true;
+
+  try {
+    const barcodeRecord = await findArticleByEan(ean);
+
+    if (!barcodeRecord) {
+      await registerUnresolvedBarcode(ean);
+
+      unresolvedCount += 1;
+      updateSessionSummary();
+
+      showTemporaryMessage(
+        `EAN ${ean} non riconosciuto. Registrato per verifica.`,
+        "warning"
+      );
+
+      return;
+    }
+
+    const existingAssignment =
+      await getAssignmentByArticle(
+        barcodeRecord.articleCode
+      );
+
+    /*
+     * Caso importante:
+     * è già lo stesso articolo nella stessa zona.
+     *
+     * Potrebbe essere una SKU con taglia o colore diverso.
+     * Non mostriamo avvisi e non aggiorniamo contatori.
+     */
+    if (
+      existingAssignment &&
+      existingAssignment.zoneId === selectedZone.zoneId
+    ) {
+      return;
+    }
+
+    /*
+     * L'articolo è già associato a una zona differente:
+     * questo è l'unico controllo forte.
+     */
+    if (
+      existingAssignment &&
+      existingAssignment.zoneId !== selectedZone.zoneId
+    ) {
+      await handleZoneConflict(
+        barcodeRecord,
+        existingAssignment
+      );
+
+      return;
+    }
+
     await createAssignment(barcodeRecord);
 
-    showMessage(
-      `Articolo ${barcodeRecord.articleCode} associato a ${selectedZone.zoneCode}`,
+    associatedCount += 1;
+    updateSessionSummary();
+
+    showTemporaryMessage(
+      `${barcodeRecord.articleCode} associato a ${selectedZone.zoneCode}`,
       "success"
     );
 
     await renderAssignments();
-    return;
+
+  } catch (error) {
+    showMessage(
+      `Errore durante la scansione: ${error.message}`,
+      "error"
+    );
+
+    console.error(error);
+
+  } finally {
+    barcodeProcessing = false;
+  }
+}
+
+function isRepeatedCameraReading(ean) {
+  const currentTime = Date.now();
+
+  if (
+    ean === lastScannedEan &&
+    currentTime - lastScanTime < DUPLICATE_SCAN_INTERVAL
+  ) {
+    return true;
   }
 
-  if (existingAssignment.zoneId === selectedZone.zoneId) {
-    showMessage(
-      `Articolo ${barcodeRecord.articleCode} già presente in ${selectedZone.zoneCode}`,
+  lastScannedEan = ean;
+  lastScanTime = currentTime;
+
+  return false;
+}
+
+async function handleZoneConflict(
+  barcodeRecord,
+  existingAssignment
+) {
+  const moveConfirmed = confirm(
+    `L'articolo ${barcodeRecord.articleCode} è già associato ` +
+    `alla zona ${existingAssignment.zoneCode}.\n\n` +
+    `Vuoi spostarlo nella zona ${selectedZone.zoneCode}?`
+  );
+
+  if (!moveConfirmed) {
+    showTemporaryMessage(
+      `Articolo mantenuto nella zona ${existingAssignment.zoneCode}`,
       "warning"
     );
 
     return;
   }
 
-  const moveConfirmed = confirm(
-    `L'articolo ${barcodeRecord.articleCode} è già associato alla zona ` +
-    `${existingAssignment.zoneCode}.\n\n` +
-    `Vuoi spostarlo in ${selectedZone.zoneCode}?`
-  );
-
-  if (!moveConfirmed) {
-    showMessage("Operazione annullata", "warning");
-    return;
-  }
-
   await createAssignment(barcodeRecord);
 
-  showMessage(
-    `Articolo ${barcodeRecord.articleCode} spostato in ${selectedZone.zoneCode}`,
+  associatedCount += 1;
+  updateSessionSummary();
+
+  showTemporaryMessage(
+    `${barcodeRecord.articleCode} spostato da ` +
+    `${existingAssignment.zoneCode} a ${selectedZone.zoneCode}`,
     "success"
   );
 
@@ -187,30 +301,77 @@ async function createAssignment(barcodeRecord) {
   await saveAssignment({
     articleCode: barcodeRecord.articleCode,
     scannedEan: barcodeRecord.ean,
+
     storeCode: layout.storeCode,
     layoutId: layout.layoutId,
+
     zoneId: selectedZone.zoneId,
     zoneCode: selectedZone.zoneCode,
+
     createdAt: new Date().toISOString(),
     syncStatus: "PENDING"
   });
 }
 
+async function registerUnresolvedBarcode(ean) {
+  const unresolvedKey = [
+    layout.layoutId,
+    selectedZone.zoneId,
+    ean
+  ].join("|");
+
+  await saveUnresolvedBarcode({
+    unresolvedKey,
+    ean,
+
+    storeCode: layout.storeCode,
+    layoutId: layout.layoutId,
+
+    zoneId: selectedZone.zoneId,
+    zoneCode: selectedZone.zoneCode,
+
+    scannedAt: new Date().toISOString(),
+
+    reason: "EAN_NOT_FOUND",
+    status: "PENDING"
+  });
+}
+
+async function changeZone() {
+  await stopScanner();
+
+  selectedZone = null;
+  lastScannedEan = null;
+  lastScanTime = 0;
+
+  document.getElementById("scannerPanel").hidden = true;
+  document.getElementById("zoneList").hidden = false;
+
+  showMessage(
+    "Seleziona una nuova zona",
+    "warning"
+  );
+}
+
 async function stopScanner() {
-  if (!scanner || !scannerRunning) {
-    document.getElementById("scannerPanel").hidden = true;
+  if (!scanner) {
+    scannerRunning = false;
     return;
   }
 
   try {
-    await scanner.stop();
+    if (scannerRunning) {
+      await scanner.stop();
+    }
+
     scanner.clear();
+
   } catch (error) {
-    console.error(error);
+    console.error("Errore arresto scanner:", error);
+
   } finally {
     scannerRunning = false;
     scanner = null;
-    document.getElementById("scannerPanel").hidden = true;
   }
 }
 
@@ -227,10 +388,12 @@ async function renderAssignments() {
 
   assignments
     .sort((a, b) =>
-      a.zoneCode.localeCompare(b.zoneCode)
+      a.zoneCode.localeCompare(b.zoneCode) ||
+      a.articleCode.localeCompare(b.articleCode)
     )
     .forEach(assignment => {
       const element = document.createElement("div");
+
       element.className = "assignment";
 
       element.textContent =
@@ -241,9 +404,34 @@ async function renderAssignments() {
     });
 }
 
-function showMessage(text, className) {
+function updateSessionSummary() {
+  document.getElementById("associatedCount").textContent =
+    associatedCount;
+
+  document.getElementById("unresolvedCount").textContent =
+    unresolvedCount;
+}
+
+function showMessage(text, className = "") {
   const element = document.getElementById("message");
 
   element.textContent = text;
   element.className = className;
+}
+
+function showTemporaryMessage(
+  text,
+  className,
+  duration = 1800
+) {
+  showMessage(text, className);
+
+  window.setTimeout(() => {
+    if (selectedZone) {
+      showMessage(
+        `Scanner attivo sulla zona ${selectedZone.zoneCode}`,
+        ""
+      );
+    }
+  }, duration);
 }
