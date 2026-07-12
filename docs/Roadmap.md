@@ -1,61 +1,27 @@
 Release 0.1
-
-Foundation
-
-✔ GitHub
-✔ Pages
-✔ Mapper Bootstrap
-
-----------------------
+✔ Foundation
 
 Release 0.2
-
-Mapper MVP
-
-□ Scanner Barcode
-
-□ Associazione
-
-□ Controllo duplicati
-
-□ IndexedDB
-
-----------------------
+✔ Continuous Mapping
 
 Release 0.3
-
-Layout
-
-□ Proprietà Zone
-
-□ Tipologia Asset
-
-□ Colori
-
-□ Versioning Layout
-
-----------------------
+□ Sessione di scansione
+□ Dashboard operatore
+□ Cronologia scansioni
+□ Gestione anomalie
 
 Release 0.4
-
-Viewer
-
-□ KPI
-
-□ Vendite
-
-□ Stock
-
-□ HyperIntelligence
-
-----------------------
+□ Editor Layout evoluto
+□ Asset
+□ Colori
+□ Versioning
 
 Release 0.5
-
-Analytics
-
+□ Viewer KPI
+□ HyperIntelligence
 □ Heatmap
 
-□ Customer Journey
-
-□ AI
+Release 0.6
+□ Sincronizzazione
+□ API
+□ Backend

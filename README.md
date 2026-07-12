@@ -56,10 +56,9 @@ ZoneMind nasce per consentire:
 
 ---
 
-
 ## Stato del progetto
 
-**Versione:** 0.1.0 - Foundation
+**Versione:** 0.2.0 - Continuous Mapping
 
 ### Completato
 
@@ -68,20 +67,35 @@ ZoneMind nasce per consentire:
 - Struttura del progetto
 - Editor grafico delle zone
 - Import / Export JSON
-- Primo prototipo Mapper Mobile
-- Persistenza locale con IndexedDB
-- Test su smartphone
+- Persistenza locale IndexedDB
+- Prototipo mobile
+- Scanner Barcode
+- Scansione continua per zona
+- Gestione anomalie EAN non riconosciuti
+- Controllo articolo presente su zone differenti
+- Interfaccia mobile ottimizzata
 
 ### In corso
 
-- Scanner barcode
-- Associazione articolo ↔ zona
+- Gestione sessione di scansione
+- Sincronizzazione dati con componente Web
 
 ### Prossimo obiettivo
 
-Realizzare il primo flusso completo:
+Workflow completo:
 
-Zona → Barcode → Articolo → Associazione
+Zona
+↓
+
+Scansione continua
+
+↓
+
+Associazione articoli
+
+↓
+
+Sincronizzazione
 
 ---
 

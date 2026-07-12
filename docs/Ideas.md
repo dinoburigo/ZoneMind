@@ -1,33 +1,27 @@
-AI che suggerisce la disposizione ottimale
+## Idee
 
-------------
+### Scanner continuo per zona
 
-Computer Vision
+Workflow ottimizzato per lo Store Manager.
 
-------------
+---
 
-Monitoraggio clienti
+### Gestione anomalie differita
 
-------------
+Gli EAN non riconosciuti vengono corretti dalla componente Web.
 
-Percorso ottimale
+---
 
-------------
+### Dashboard qualità dati
 
-Heatmap
+Visualizzazione di:
 
-------------
+- articoli non assegnati
+- EAN non riconosciuti
+- articoli presenti su più zone
 
-Realtà aumentata
+---
 
-------------
+### Suggerimento AI
 
-Zone temporanee
-
-------------
-
-Gestione promozioni
-
-------------
-
-Simulazione nuovo layout
+Durante la scansione il sistema potrebbe suggerire automaticamente la zona più probabile in base alla storia dello store.
