@@ -127,34 +127,34 @@ async function startScanner() {
       {
         facingMode: "environment"
       },
-{
-  fps: 12,
+      {
+        fps: 12,
 
-  qrbox: function(viewfinderWidth, viewfinderHeight) {
-    const width = Math.min(
-      Math.floor(viewfinderWidth * 0.82),
-      420
-    );
+        qrbox: function (viewfinderWidth, viewfinderHeight) {
+          const width = Math.min(
+            Math.floor(viewfinderWidth * 0.82),
+            420
+          );
 
-    const height = Math.min(
-      Math.floor(viewfinderHeight * 0.28),
-      150
-    );
+          const height = Math.min(
+            Math.floor(viewfinderHeight * 0.28),
+            150
+          );
 
-    return {
-      width,
-      height
-    };
-  },
+          return {
+            width,
+            height
+          };
+        },
 
-  aspectRatio: 1.7778,
+        aspectRatio: 1.7778,
 
-  formatsToSupport: [
-    Html5QrcodeSupportedFormats.EAN_13,
-    Html5QrcodeSupportedFormats.EAN_8,
-    Html5QrcodeSupportedFormats.CODE_128
-  ]
-},
+        formatsToSupport: [
+          Html5QrcodeSupportedFormats.EAN_13,
+          Html5QrcodeSupportedFormats.EAN_8,
+          Html5QrcodeSupportedFormats.CODE_128
+        ]
+      },
       handleBarcode,
       () => {
         // Gli errori di mancata lettura durante

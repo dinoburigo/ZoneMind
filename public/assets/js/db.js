@@ -30,25 +30,25 @@ export function openDatabase() {
           unique: false
         });
       }
-	  
-	if (!db.objectStoreNames.contains("unresolvedBarcodes")) {
-	  const store = db.createObjectStore("unresolvedBarcodes", {
-		keyPath: "unresolvedKey"
-	  });
 
-	  store.createIndex("byStatus", "status", {
-		unique: false
-	  });
+      if (!db.objectStoreNames.contains("unresolvedBarcodes")) {
+        const store = db.createObjectStore("unresolvedBarcodes", {
+          keyPath: "unresolvedKey"
+        });
 
-	  store.createIndex("byEan", "ean", {
-		unique: false
-	  });
+        store.createIndex("byStatus", "status", {
+          unique: false
+        });
 
-	  store.createIndex("byZoneId", "zoneId", {
-		unique: false
-	  });
-	}	  
-	  
+        store.createIndex("byEan", "ean", {
+          unique: false
+        });
+
+        store.createIndex("byZoneId", "zoneId", {
+          unique: false
+        });
+      }
+
     };
 
     request.onsuccess = event => {
