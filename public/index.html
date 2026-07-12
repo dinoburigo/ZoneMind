@@ -28,17 +28,57 @@
     <div id="zoneList"></div>
   </section>
 
-  <section id="scannerPanel" hidden>
-    <h2 id="scannerTitle">Scanner</h2>
+<section id="scannerPanel" class="scanner-screen" hidden>
 
+  <div class="scanner-header">
+    <div>
+      <div class="scanner-label">Zona selezionata</div>
+      <h2 id="scannerTitle">A01</h2>
+    </div>
+
+    <button
+      id="changeZoneButton"
+      class="change-zone-button"
+      type="button"
+    >
+      Cambia zona
+    </button>
+  </div>
+
+  <div class="camera-container">
     <div id="reader"></div>
 
-	<div class="scanner-actions">
-	  <button id="changeZoneButton">
-		Cambia zona
-	  </button>
-	</div>
-  </section>
+    <div class="scan-overlay" aria-hidden="true">
+      <div class="scan-target">
+        <span class="corner top-left"></span>
+        <span class="corner top-right"></span>
+        <span class="corner bottom-left"></span>
+        <span class="corner bottom-right"></span>
+
+        <div class="scan-line"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="scanner-message-area">
+    <div id="message">
+      Inquadra il barcode dell'articolo
+    </div>
+  </div>
+
+  <div class="scanner-footer">
+    <div class="counter">
+      <span>Associati</span>
+      <strong id="associatedCount">0</strong>
+    </div>
+
+    <div class="counter">
+      <span>Anomalie</span>
+      <strong id="unresolvedCount">0</strong>
+    </div>
+  </div>
+
+</section>
 
 <section>
   <h2>Sessione corrente</h2>

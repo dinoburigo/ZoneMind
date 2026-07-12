@@ -101,11 +101,11 @@ async function selectZone(zone) {
   unresolvedCount = 0;
   updateSessionSummary();
 
-  document.getElementById("zoneList").hidden = true;
-  document.getElementById("scannerPanel").hidden = false;
+document.getElementById("scannerPanel").hidden = false;
+document.body.classList.add("scanner-active");
 
-  document.getElementById("scannerTitle").textContent =
-    `Zona ${selectedZone.zoneCode} - Scansiona gli articoli`;
+document.getElementById("scannerTitle").textContent =
+  selectedZone.zoneCode;
 
   showMessage(
     `Zona ${selectedZone.zoneCode} selezionata`,
@@ -127,20 +127,34 @@ async function startScanner() {
       {
         facingMode: "environment"
       },
-      {
-        fps: 10,
+{
+  fps: 12,
 
-        qrbox: {
-          width: 280,
-          height: 140
-        },
+  qrbox: function(viewfinderWidth, viewfinderHeight) {
+    const width = Math.min(
+      Math.floor(viewfinderWidth * 0.82),
+      420
+    );
 
-        formatsToSupport: [
-          Html5QrcodeSupportedFormats.EAN_13,
-          Html5QrcodeSupportedFormats.EAN_8,
-          Html5QrcodeSupportedFormats.CODE_128
-        ]
-      },
+    const height = Math.min(
+      Math.floor(viewfinderHeight * 0.28),
+      150
+    );
+
+    return {
+      width,
+      height
+    };
+  },
+
+  aspectRatio: 1.7778,
+
+  formatsToSupport: [
+    Html5QrcodeSupportedFormats.EAN_13,
+    Html5QrcodeSupportedFormats.EAN_8,
+    Html5QrcodeSupportedFormats.CODE_128
+  ]
+}
       handleBarcode,
       () => {
         // Gli errori di mancata lettura durante
@@ -345,7 +359,7 @@ async function changeZone() {
   lastScanTime = 0;
 
   document.getElementById("scannerPanel").hidden = true;
-  document.getElementById("zoneList").hidden = false;
+  document.body.classList.remove("scanner-active");
 
   showMessage(
     "Seleziona una nuova zona",
