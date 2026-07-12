@@ -5,7 +5,7 @@
 
   <meta
     name="viewport"
-    content="width=device-width, initial-scale=1.0"
+    content="width=device-width, initial-scale=1.0, viewport-fit=cover"
   >
 
   <title>ZoneMind Mapper</title>
@@ -23,90 +23,73 @@
 </header>
 
 <main>
-  <section>
+  <section id="zoneSelectionSection">
     <h2>Seleziona zona</h2>
     <div id="zoneList"></div>
   </section>
 
-<section id="scannerPanel" class="scanner-screen" hidden>
+  <section id="scannerPanel" class="scanner-screen" hidden>
 
-  <div class="scanner-header">
-    <div>
-      <div class="scanner-label">Zona selezionata</div>
-      <h2 id="scannerTitle">A01</h2>
+    <div class="scanner-header">
+      <div>
+        <div class="scanner-label">Zona selezionata</div>
+        <h2 id="scannerTitle">-</h2>
+      </div>
+
+      <button
+        id="changeZoneButton"
+        class="change-zone-button"
+        type="button"
+      >
+        Cambia zona
+      </button>
     </div>
 
-    <button
-      id="changeZoneButton"
-      class="change-zone-button"
-      type="button"
-    >
-      Cambia zona
-    </button>
-  </div>
+    <div class="camera-container">
+      <div id="reader"></div>
 
-  <div class="camera-container">
-    <div id="reader"></div>
+      <div class="scan-overlay" aria-hidden="true">
+        <div class="scan-target">
+          <span class="corner top-left"></span>
+          <span class="corner top-right"></span>
+          <span class="corner bottom-left"></span>
+          <span class="corner bottom-right"></span>
 
-    <div class="scan-overlay" aria-hidden="true">
-      <div class="scan-target">
-        <span class="corner top-left"></span>
-        <span class="corner top-right"></span>
-        <span class="corner bottom-left"></span>
-        <span class="corner bottom-right"></span>
-
-        <div class="scan-line"></div>
+          <div class="scan-line"></div>
+        </div>
       </div>
     </div>
-  </div>
 
-  <div class="scanner-message-area">
-    <div id="message">
-      Inquadra il barcode dell'articolo
-    </div>
-  </div>
-
-  <div class="scanner-footer">
-    <div class="counter">
-      <span>Associati</span>
-      <strong id="associatedCount">0</strong>
+    <div class="scanner-message-area">
+      <div id="message">
+        Inquadra il barcode dell'articolo
+      </div>
     </div>
 
-    <div class="counter">
-      <span>Anomalie</span>
-      <strong id="unresolvedCount">0</strong>
+    <div class="scanner-footer">
+      <div class="counter">
+        <span>Associati</span>
+        <strong id="associatedCount">0</strong>
+      </div>
+
+      <div class="counter">
+        <span>Anomalie</span>
+        <strong id="unresolvedCount">0</strong>
+      </div>
     </div>
-  </div>
 
-</section>
+  </section>
 
-<section>
-  <h2>Sessione corrente</h2>
-
-  <div id="sessionSummary">
-    <span>
-      Associati:
-      <strong id="associatedCount">0</strong>
-    </span>
-
-    <span>
-      Anomalie:
-      <strong id="unresolvedCount">0</strong>
-    </span>
-  </div>
-
-  <div id="message">
-    Seleziona una zona per iniziare
-  </div>
-</section>
-
-  <section>
+  <section id="assignmentSection">
     <h2>Associazioni locali</h2>
-    <div id="assignmentList"></div>
+    <div id="assignmentList">Nessuna associazione</div>
   </section>
 </main>
 
-<script type="module" src="./assets/js/mapper.js"></script>
+<script
+  type="module"
+  src="./assets/js/mapper.js"
+></script>
 
 </body>
 </html>

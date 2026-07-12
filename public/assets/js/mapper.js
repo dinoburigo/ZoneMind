@@ -101,15 +101,15 @@ async function selectZone(zone) {
   unresolvedCount = 0;
   updateSessionSummary();
 
-document.getElementById("scannerPanel").hidden = false;
-document.body.classList.add("scanner-active");
+  document.getElementById("scannerPanel").hidden = false;
+  document.body.classList.add("scanner-active");
 
-document.getElementById("scannerTitle").textContent =
-  selectedZone.zoneCode;
+  document.getElementById("scannerTitle").textContent =
+    selectedZone.zoneCode;
 
   showMessage(
-    `Zona ${selectedZone.zoneCode} selezionata`,
-    "success"
+    `Scanner attivo sulla zona ${selectedZone.zoneCode}`,
+    ""
   );
 
   await startScanner();
@@ -363,7 +363,7 @@ async function changeZone() {
 
   showMessage(
     "Seleziona una nuova zona",
-    "warning"
+    ""
   );
 }
 
