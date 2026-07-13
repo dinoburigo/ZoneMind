@@ -56,46 +56,36 @@ ZoneMind nasce per consentire:
 
 ---
 
-## Stato del progetto
+### Stato del progetto
 
-**Versione:** 0.2.0 - Continuous Mapping
+**Versione corrente:** 0.3.0 - Minimal Zone Editor
 
 ### Completato
 
-- Repository GitHub
-- GitHub Pages
+- Repository GitHub e GitHub Pages
 - Struttura del progetto
-- Editor grafico delle zone
-- Import / Export JSON
-- Persistenza locale IndexedDB
-- Prototipo mobile
-- Scanner Barcode
+- Mapper mobile
+- Scanner barcode
 - Scansione continua per zona
-- Gestione anomalie EAN non riconosciuti
+- Persistenza locale con IndexedDB
+- Gestione EAN non riconosciuti
 - Controllo articolo presente su zone differenti
-- Interfaccia mobile ottimizzata
+- Editor minimale delle zone
+- Codifica automatica A01, A02, A03...
+- Creazione continua delle zone
+- Selezione ed eliminazione zona
+- Import / Export layout JSON
+- Planimetria incorporata nel JSON di prototipo
 
 ### In corso
 
-- Gestione sessione di scansione
-- Sincronizzazione dati con componente Web
+- Allineamento del JSON tra Editor e Mapper
+- Configurazione modalità semplice / avanzata
+- Consolidamento del modello dati
 
 ### Prossimo obiettivo
 
-Workflow completo:
-
-Zona
-↓
-
-Scansione continua
-
-↓
-
-Associazione articoli
-
-↓
-
-Sincronizzazione
+Utilizzare nel Mapper mobile il layout generato direttamente dall’Editor.
 
 ---
 
@@ -103,11 +93,14 @@ Sincronizzazione
 
 - [x] Editor planimetria
 - [x] Definizione zone
-- [x] Export / Import JSON
-- [x] Test scanner barcode
-- [ ] Gestione proprietà delle zone
-- [ ] Associazione articolo ↔ zona
-- [ ] Viewer
-- [ ] Analytics
+- [x] Import / Export JSON
+- [x] Scanner barcode
+- [x] Associazione articolo ↔ zona
+- [x] Scansione continua
+- [x] Editor minimale con codifica automatica
+- [ ] Integrazione Editor → Mapper
+- [ ] Gestione configurazione semplice / avanzata
+- [ ] Sincronizzazione backend
+- [ ] Viewer e Analytics
+- [ ] Integrazione MicroStrategy
 - [ ] Computer Vision
-- [ ] Dashboard BI

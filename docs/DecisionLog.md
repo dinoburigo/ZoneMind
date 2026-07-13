@@ -54,18 +54,41 @@ Ridurre l'effort dello store, facilitare l'adozione e mantenere la soluzione sca
 
 ---
 
-## DL-006 - L'Editor privilegia la velocità rispetto alla precisione
 
-La creazione delle zone deve richiedere il minor numero possibile di interazioni.
+---
 
-Le zone sono rettangolari.
+## DL-006 - Editor minimale per default
 
-Non è previsto il ridimensionamento.
+ZoneMind deve consentire la definizione delle zone con il minor numero possibile di interazioni.
 
-La modifica avviene eliminando e ricreando la zona.
+Il flusso standard prevede:
 
-Motivazione
+- apertura della planimetria;
+- attivazione della modalità di disegno;
+- trascinamento per creare una zona;
+- assegnazione automatica del codice;
+- prosecuzione immediata con la zona successiva.
 
-La definizione del layout è un'attività occasionale.
+Non sono previste, nella modalità semplice:
 
-Ridurre la complessità dell'interfaccia aumenta la velocità di utilizzo e riduce il tempo di formazione.
+- descrizione obbligatoria;
+- modifica del codice;
+- ridimensionamento;
+- pannello proprietà;
+- poligoni;
+- gestione multipiano.
+
+La correzione di una zona avviene mediante eliminazione e ricreazione.
+
+### Motivazione
+
+La maggior parte dei negozi ha strutture semplici e risorse operative limitate. La velocità e l’intuitività hanno priorità rispetto alla ricchezza funzionale.
+
+---
+
+## DL-007 - Codice zona automatico
+
+Il codice zona viene generato automaticamente secondo il formato:
+
+```text
+A01, A02, A03...
