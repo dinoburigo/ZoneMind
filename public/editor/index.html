@@ -1,177 +1,112 @@
 <!DOCTYPE html>
 <html lang="it">
-
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <title>ZoneMind - Test barcode</title>
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  >
 
-  <script src="https://unpkg.com/html5-qrcode"></script>
+  <title>ZoneMind Editor</title>
 
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 16px;
-    }
-
-    button {
-      padding: 12px 18px;
-      font-size: 16px;
-      margin-right: 8px;
-      margin-bottom: 12px;
-    }
-
-    #reader {
-      width: 100%;
-      max-width: 500px;
-      margin-top: 15px;
-    }
-
-    #risultato {
-      margin-top: 20px;
-      padding: 12px;
-      border: 1px solid #ccc;
-      background: #f5f5f5;
-      word-break: break-all;
-    }
-
-    #errore {
-      margin-top: 15px;
-      color: #b00020;
-      white-space: pre-wrap;
-    }
-  </style>
+  <link rel="stylesheet" href="./editor.css">
 </head>
 
 <body>
 
-  <h2>ZoneMind – Test lettore barcode</h2>
+<header class="app-header">
+  <div>
+    <h1>ZoneMind Editor</h1>
+    <p>Definizione rapida delle zone del negozio</p>
+  </div>
+</header>
 
-  <button onclick="avviaScanner()">Avvia scanner</button>
-  <button onclick="fermaScanner()">Ferma scanner</button>
+<nav class="toolbar">
 
-  <div id="reader"></div>
+  <button id="loadImageButton" type="button">
+    Apri planimetria
+  </button>
 
-  <div id="risultato">
-    Barcode letto: -
+  <button id="newZoneButton" type="button">
+    Nuova zona
+  </button>
+
+  <button id="finishEditingButton" type="button" disabled>
+    Fine editing
+  </button>
+
+  <button id="deleteZoneButton" type="button" disabled>
+    Elimina zona
+  </button>
+
+  <button id="importJsonButton" type="button">
+    Importa JSON
+  </button>
+
+  <button id="exportJsonButton" type="button">
+    Esporta JSON
+  </button>
+
+  <input
+    id="imageInput"
+    type="file"
+    accept="image/*"
+    hidden
+  >
+
+  <input
+    id="jsonInput"
+    type="file"
+    accept=".json,application/json"
+    hidden
+  >
+
+</nav>
+
+<main>
+
+  <div id="statusBar" class="status-bar">
+    Apri una planimetria per iniziare.
   </div>
 
-  <div id="errore"></div>
+  <section id="emptyState" class="empty-state">
+    <h2>Nessuna planimetria caricata</h2>
+    <p>
+      Carica un'immagine oppure importa un layout JSON.
+    </p>
+  </section>
 
-  <script>
-    let scanner = null;
-    let scannerAttivo = false;
+  <section id="editorArea" class="editor-area" hidden>
 
-    async function avviaScanner() {
-      const errore = document.getElementById("errore");
-      errore.textContent = "";
+    <div id="mapContainer" class="map-container">
 
-      if (!window.isSecureContext) {
-        errore.textContent =
-          "La pagina non è aperta in un contesto sicuro.\n" +
-          "Indirizzo corrente: " + window.location.href + "\n" +
-          "Protocollo: " + window.location.protocol;
-        return;
-      }
+      <img
+        id="floorplanImage"
+        alt="Planimetria"
+        draggable="false"
+      >
 
-      if (!navigator.mediaDevices ||
-        !navigator.mediaDevices.getUserMedia) {
-        errore.textContent =
-          "La fotocamera non è accessibile da questo browser o da questa modalità di apertura.";
-        return;
-      }
+      <svg
+        id="zoneLayer"
+        xmlns="http://www.w3.org/2000/svg"
+      ></svg>
 
-      try {
-        if (!scanner) {
-          scanner = new Html5Qrcode("reader");
-        }
+    </div>
 
-        const configurazione = {
-          fps: 10,
-          qrbox: {
-            width: 280,
-            height: 140
-          },
-          aspectRatio: 1.7778,
-          formatsToSupport: [
-            Html5QrcodeSupportedFormats.EAN_13,
-            Html5QrcodeSupportedFormats.EAN_8,
-            Html5QrcodeSupportedFormats.CODE_128,
-            Html5QrcodeSupportedFormats.CODE_39,
-            Html5QrcodeSupportedFormats.UPC_A,
-            Html5QrcodeSupportedFormats.UPC_E
-          ]
-        };
+  </section>
 
-        await scanner.start(
-          {
-            facingMode: {
-              exact: "environment"
-            }
-          },
-          configurazione,
-          barcodeLetto,
-          () => {
-            // Gli errori durante la ricerca del barcode
-            // sono normali e non vengono visualizzati.
-          }
-        );
+</main>
 
-        scannerAttivo = true;
+<footer class="app-footer">
+  <span id="modeIndicator">Modalità: selezione</span>
+  <span id="zoneCounter">Zone: 0</span>
+</footer>
 
-      } catch (error) {
-        console.error(error);
-
-        // Alcuni telefoni non accettano "exact".
-        try {
-          await scanner.start(
-            { facingMode: "environment" },
-            configurazione,
-            barcodeLetto,
-            () => { }
-          );
-
-          scannerAttivo = true;
-
-        } catch (secondoErrore) {
-          console.error(secondoErrore);
-
-          errore.textContent =
-            "Impossibile avviare la fotocamera.\n\n" +
-            "Errore: " +
-            (secondoErrore.message || secondoErrore);
-        }
-      }
-    }
-
-    async function barcodeLetto(testo, risultatoCompleto) {
-      document.getElementById("risultato").innerHTML =
-        "<strong>Barcode letto:</strong><br>" +
-        testo;
-
-      console.log("Barcode:", testo);
-      console.log("Dettagli:", risultatoCompleto);
-
-      await fermaScanner();
-    }
-
-    async function fermaScanner() {
-      if (!scanner || !scannerAttivo) {
-        return;
-      }
-
-      try {
-        await scanner.stop();
-        scanner.clear();
-      } catch (error) {
-        console.error("Errore arresto scanner:", error);
-      } finally {
-        scannerAttivo = false;
-      }
-    }
-  </script>
+<script
+  type="module"
+  src="./editor.js"
+></script>
 
 </body>
-
 </html>
