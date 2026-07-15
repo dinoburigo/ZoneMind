@@ -61,17 +61,56 @@ async function loadBarcodeData() {
 
 async function loadLayout() {
   const response = await fetch(
-    "./data/layout-demo.json"
+    "./data/layout-current.json",
+    {
+      cache: "no-store"
+    }
   );
 
   if (!response.ok) {
-    throw new Error("Layout non disponibile");
+    throw new Error(
+      `Layout non disponibile: HTTP ${response.status}`
+    );
   }
 
-  layout = await response.json();
+  const loadedLayout = await response.json();
+
+  validateLayout(loadedLayout);
+
+  layout = loadedLayout;
 
   document.getElementById("storeInfo").textContent =
     `${layout.storeCode} - ${layout.layoutCode}`;
+}
+
+function validateLayout(loadedLayout) {
+  if (!loadedLayout || typeof loadedLayout !== "object") {
+    throw new Error("Struttura layout non valida");
+  }
+
+  if (!loadedLayout.storeCode) {
+    throw new Error("Store non presente nel layout");
+  }
+
+  if (!loadedLayout.layoutId) {
+    throw new Error("Layout ID non presente");
+  }
+
+  if (!Array.isArray(loadedLayout.zones)) {
+    throw new Error("Elenco zone non presente");
+  }
+
+  const invalidZone = loadedLayout.zones.find(zone =>
+    !zone.zoneId ||
+    !zone.zoneCode ||
+    !zone.geometry
+  );
+
+  if (invalidZone) {
+    throw new Error(
+      "Una o più zone non rispettano lo schema previsto"
+    );
+  }
 }
 
 function renderZones() {
@@ -79,7 +118,7 @@ function renderZones() {
   container.innerHTML = "";
 
   layout.zones
-    .filter(zone => zone.monitoringEnabled)
+    .filter(zone => zone.monitoringEnabled !== false)
     .forEach(zone => {
       const button = document.createElement("button");
 
