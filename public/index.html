@@ -1,87 +1,95 @@
 <!DOCTYPE html>
 <html lang="it">
-
 <head>
   <meta charset="UTF-8">
-
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-
   <title>ZoneMind Mapper</title>
-
   <link rel="stylesheet" href="./assets/css/mapper.css">
-
   <script src="https://unpkg.com/html5-qrcode"></script>
 </head>
-
 <body>
-
-  <header>
+  <header class="app-header">
     <h1>ZoneMind Mapper</h1>
     <div id="storeInfo">Caricamento...</div>
   </header>
 
   <main>
-    <section id="zoneSelectionSection">
-      <h2>Seleziona zona</h2>
-      <div id="zoneList"></div>
+    <section class="layout-section">
+      <div class="section-heading">
+        <h2>Planimetria</h2>
+        <p>Tocca una zona per iniziare la lettura barcode.</p>
+      </div>
+
+      <div id="layoutViewport" class="layout-viewport">
+        <div class="layout-canvas">
+          <img id="floorplanImage" alt="Planimetria del negozio" draggable="false">
+          <svg id="zoneLayer" xmlns="http://www.w3.org/2000/svg" aria-label="Zone della planimetria"></svg>
+        </div>
+      </div>
+    </section>
+
+    <section id="selectedZoneSection" class="selected-zone-section" hidden>
+      <div>
+        <span class="eyebrow">Zona selezionata</span>
+        <h2 id="selectedZoneCode">-</h2>
+      </div>
+      <div class="selected-zone-count">
+        <strong id="selectedZoneArticleCount">0</strong>
+        <span>articoli associati</span>
+      </div>
+      <button id="viewArticlesButton" class="secondary-button" type="button" disabled>
+        Visualizza articoli
+        <small>Disponibile in una prossima release</small>
+      </button>
+    </section>
+
+    <section class="zone-summary-section">
+      <div class="section-heading">
+        <h2>Riepilogo zone</h2>
+        <p>Tocca una zona per consultarne il totale.</p>
+      </div>
+      <div id="zoneSummaryList" class="zone-summary-list">Caricamento...</div>
     </section>
 
     <section id="scannerPanel" class="scanner-screen" hidden>
-
       <div class="scanner-header">
         <div>
-          <div class="scanner-label">Zona selezionata</div>
+          <div class="scanner-label">Zona attiva</div>
           <h2 id="scannerTitle">-</h2>
         </div>
-
-        <button id="changeZoneButton" class="change-zone-button" type="button">
-          Cambia zona
-        </button>
+        <button id="changeZoneButton" class="change-zone-button" type="button">Termina lettura</button>
       </div>
 
       <div class="camera-container">
         <div id="reader"></div>
-
         <div class="scan-overlay" aria-hidden="true">
           <div class="scan-target">
             <span class="corner top-left"></span>
             <span class="corner top-right"></span>
             <span class="corner bottom-left"></span>
             <span class="corner bottom-right"></span>
-
             <div class="scan-line"></div>
           </div>
         </div>
       </div>
 
       <div class="scanner-message-area">
-        <div id="message">
-          Inquadra il barcode dell'articolo
-        </div>
+        <div id="message">Inquadra il barcode dell'articolo</div>
       </div>
 
       <div class="scanner-footer">
         <div class="counter">
-          <span>Associati</span>
+          <span>Articoli zona</span>
           <strong id="associatedCount">0</strong>
         </div>
-
         <div class="counter">
-          <span>Anomalie</span>
+          <span>Anomalie sessione</span>
           <strong id="unresolvedCount">0</strong>
         </div>
       </div>
-
-    </section>
-
-    <section id="assignmentSection">
-      <h2>Associazioni locali</h2>
-      <div id="assignmentList">Nessuna associazione</div>
     </section>
   </main>
 
   <script type="module" src="./assets/js/mapper.js"></script>
-
 </body>
-
 </html>
