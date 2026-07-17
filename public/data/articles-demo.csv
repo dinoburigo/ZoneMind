@@ -1,0 +1,5 @@
+storeCode,ean,articleCode,description,colorCode,sizeCode,imageUrl
+STORE001,8050000000001,ART0001,Maglia girocollo,001,S,
+STORE001,8050000000002,ART0001,Maglia girocollo,001,M,
+STORE001,8050000000010,ART0002,Jeans slim,500,30,
+STORE001,8050000000020,ART0003,Polo manica corta,100,M,

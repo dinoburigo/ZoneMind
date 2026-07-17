@@ -1,0 +1,20 @@
+# Ambiente Python
+.venv/
+venv/
+env/
+
+# Cache Python
+__pycache__/
+*.py[cod]
+
+# Database locale ZoneMind
+api/data/*.db
+api/data/*.db-shm
+api/data/*.db-wal
+
+# Configurazioni locali
+.env
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
