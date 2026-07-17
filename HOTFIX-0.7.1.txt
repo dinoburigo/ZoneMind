@@ -1,0 +1,7 @@
+ZoneMind 0.7.1 Hotfix
+
+Sostituire solo:
+api\app\database.py
+
+Correzione: migrazione SQLite di colonne timestamp su database esistente.
+Non cancellare api\data\zonemind.db.
