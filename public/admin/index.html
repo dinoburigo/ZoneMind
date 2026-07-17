@@ -1,1 +1,154 @@
-<!doctype html><html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ZoneMind Import</title><link rel="stylesheet" href="admin.css"></head><body><main><section><h1>Import articoli negozio</h1><form id="f"><input id="csv" type="file" accept=".csv" required><label><input id="replace" type="checkbox" checked> Sostituisci catalogo attivo</label><button>Importa</button></form><pre id="out"></pre></section></main><script type="module" src="admin.js"></script></body></html>
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ZoneMind Admin</title>
+  <link rel="stylesheet" href="./admin.css">
+</head>
+<body>
+  <header class="app-header">
+    <div>
+      <span class="brand-kicker">ZoneMind</span>
+      <h1>Admin Console</h1>
+    </div>
+
+    <div class="system-status">
+      <span id="apiDot" class="status-dot"></span>
+      <span id="apiStatus">Verifica API...</span>
+    </div>
+  </header>
+
+  <main>
+    <section class="store-bar">
+      <label for="storeSelect">Negozio</label>
+      <select id="storeSelect"></select>
+      <button id="refreshButton" class="ghost-button" type="button">Aggiorna</button>
+    </section>
+
+    <section id="emptyState" class="empty-state" hidden>
+      <h2>Nessun negozio disponibile</h2>
+      <p>Importa un catalogo CSV per creare il primo negozio.</p>
+    </section>
+
+    <section id="dashboard" hidden>
+      <div class="card-grid">
+        <article class="metric-card">
+          <span>Catalogo</span>
+          <strong id="articleCount">0</strong>
+          <small>articoli attivi</small>
+        </article>
+
+        <article class="metric-card">
+          <span>Barcode</span>
+          <strong id="barcodeCount">0</strong>
+          <small>EAN disponibili</small>
+        </article>
+
+        <article class="metric-card">
+          <span>Layout</span>
+          <strong id="zoneCount">0</strong>
+          <small id="layoutCode">nessun layout</small>
+        </article>
+
+        <article class="metric-card">
+          <span>Associazioni</span>
+          <strong id="assignmentCount">0</strong>
+          <small>articoli localizzati</small>
+        </article>
+      </div>
+
+      <div class="management-grid">
+        <article class="panel">
+          <div class="panel-heading">
+            <div>
+              <h2>Catalogo articoli</h2>
+              <p id="lastImport">Nessun import registrato</p>
+            </div>
+          </div>
+
+          <form id="catalogForm" class="upload-form">
+            <input id="csvFile" type="file" accept=".csv,text/csv" required>
+            <label class="checkbox-row">
+              <input id="replaceCatalog" type="checkbox" checked>
+              Sostituisci catalogo attivo
+            </label>
+            <button type="submit">Importa CSV</button>
+          </form>
+
+          <div id="catalogMessage" class="message" hidden></div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-heading">
+            <div>
+              <h2>Layout attivo</h2>
+              <p>Carica il JSON esportato dall'Editor.</p>
+            </div>
+          </div>
+
+          <form id="layoutForm" class="upload-form">
+            <input id="layoutFile" type="file" accept=".json,application/json" required>
+            <button type="submit">Pubblica layout</button>
+          </form>
+
+          <div id="layoutMessage" class="message" hidden></div>
+        </article>
+      </div>
+
+      <article class="panel table-panel">
+        <div class="panel-heading table-toolbar">
+          <div>
+            <h2>Articoli disponibili</h2>
+            <p>Anteprima del catalogo attivo del negozio.</p>
+          </div>
+
+          <input id="articleSearch" type="search" placeholder="Cerca codice o descrizione">
+        </div>
+
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Articolo</th>
+                <th>Descrizione</th>
+                <th>EAN</th>
+              </tr>
+            </thead>
+            <tbody id="articleTableBody"></tbody>
+          </table>
+        </div>
+
+        <div id="articleEmpty" class="table-empty" hidden>Nessun articolo trovato.</div>
+      </article>
+
+      <article class="panel table-panel">
+        <div class="panel-heading">
+          <div>
+            <h2>Associazioni per zona</h2>
+            <p>Stato centralizzato prodotto dal Mapper.</p>
+          </div>
+        </div>
+
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Zona</th>
+                <th>Articolo</th>
+                <th>Descrizione</th>
+                <th>Aggiornamento</th>
+              </tr>
+            </thead>
+            <tbody id="assignmentTableBody"></tbody>
+          </table>
+        </div>
+
+        <div id="assignmentEmpty" class="table-empty" hidden>Nessuna associazione centralizzata.</div>
+      </article>
+    </section>
+  </main>
+
+  <script type="module" src="./admin.js"></script>
+</body>
+</html>
