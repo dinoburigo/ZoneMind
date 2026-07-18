@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, File, HTTPException, Query, UploadFile
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -15,7 +16,15 @@ from .database import get_connection, initialize_database
 BASE_DIR = Path(__file__).resolve().parents[2]
 PUBLIC_DIR = BASE_DIR / "public"
 
-app = FastAPI(title="ZoneMind API", version="0.7.0")
+app = FastAPI(title="ZoneMind API", version="0.8.5")
+
+
+class StorePayload(BaseModel):
+    storeCode: str = Field(min_length=1, max_length=30)
+    storeName: str = Field(min_length=1, max_length=120)
+    city: str | None = Field(default=None, max_length=120)
+    countryCode: str | None = Field(default=None, max_length=3)
+    active: bool = True
 
 
 class Assignment(BaseModel):
@@ -48,39 +57,69 @@ def seed_layout_from_file() -> None:
 
 @app.get("/api/health")
 def health() -> dict[str, str]:
-    return {"status": "ok", "version": "0.7.0"}
+    return {"status": "ok", "version": "0.8.5"}
 
 
 @app.get("/api/admin/stores")
-def list_stores() -> list[dict[str, Any]]:
+def list_stores(includeInactive: bool = True) -> list[dict[str, Any]]:
+    where = "" if includeInactive else "WHERE s.active_flag = 1"
     with get_connection() as connection:
         rows = connection.execute(
-            """
+            f"""
             SELECT
-                s.store_code,
-                s.store_name,
-                COUNT(DISTINCT CASE WHEN sa.active_flag = 1
-                    THEN sa.article_code END) AS article_count,
+                s.store_code, s.store_name, s.city, s.country_code,
+                s.active_flag, s.created_at, s.updated_at,
+                COUNT(DISTINCT CASE WHEN sa.active_flag = 1 THEN sa.article_code END) AS article_count,
                 COUNT(DISTINCT aza.article_code) AS assignment_count
             FROM stores s
-            LEFT JOIN store_articles sa
-              ON sa.store_code = s.store_code
-            LEFT JOIN article_zone_assignments aza
-              ON aza.store_code = s.store_code
-            GROUP BY s.store_code, s.store_name
-            ORDER BY s.store_code
+            LEFT JOIN store_articles sa ON sa.store_code = s.store_code
+            LEFT JOIN article_zone_assignments aza ON aza.store_code = s.store_code
+            {where}
+            GROUP BY s.store_code, s.store_name, s.city, s.country_code,
+                     s.active_flag, s.created_at, s.updated_at
+            ORDER BY s.active_flag DESC, s.store_code
             """
         ).fetchall()
+    return [{
+        "storeCode": r["store_code"], "storeName": r["store_name"],
+        "city": r["city"], "countryCode": r["country_code"],
+        "active": bool(r["active_flag"]), "createdAt": r["created_at"],
+        "updatedAt": r["updated_at"], "articleCount": r["article_count"],
+        "assignmentCount": r["assignment_count"],
+    } for r in rows]
 
-    return [
-        {
-            "storeCode": row["store_code"],
-            "storeName": row["store_name"],
-            "articleCount": row["article_count"],
-            "assignmentCount": row["assignment_count"],
-        }
-        for row in rows
-    ]
+
+@app.post("/api/admin/stores", status_code=201)
+def create_store(payload: StorePayload) -> dict[str, Any]:
+    code = payload.storeCode.strip().upper()
+    with get_connection() as connection:
+        exists = connection.execute("SELECT 1 FROM stores WHERE store_code = ?", (code,)).fetchone()
+        if exists:
+            raise HTTPException(409, "Codice negozio già esistente")
+        connection.execute(
+            """INSERT INTO stores(store_code, store_name, city, country_code, active_flag, updated_at)
+               VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)""",
+            (code, payload.storeName.strip(), (payload.city or "").strip() or None,
+             (payload.countryCode or "").strip().upper() or None, 1 if payload.active else 0),
+        )
+    return {"storeCode": code, "status": "CREATED"}
+
+
+@app.put("/api/admin/stores/{store}")
+def update_store(store: str, payload: StorePayload) -> dict[str, Any]:
+    code = store.strip().upper()
+    if payload.storeCode.strip().upper() != code:
+        raise HTTPException(400, "Il codice negozio non può essere modificato")
+    with get_connection() as connection:
+        cursor = connection.execute(
+            """UPDATE stores SET store_name=?, city=?, country_code=?, active_flag=?, updated_at=CURRENT_TIMESTAMP
+               WHERE store_code=?""",
+            (payload.storeName.strip(), (payload.city or "").strip() or None,
+             (payload.countryCode or "").strip().upper() or None, 1 if payload.active else 0, code),
+        )
+        if cursor.rowcount == 0:
+            raise HTTPException(404, "Negozio non trovato")
+    return {"storeCode": code, "status": "UPDATED"}
 
 
 @app.get("/api/admin/stores/{store}/summary")
@@ -391,59 +430,183 @@ def save_layout(layout: dict[str, Any]) -> None:
         )
 
 
+@app.get("/api/admin/stores/{store}/layouts")
+def admin_layouts(store: str) -> list[dict[str, Any]]:
+    with get_connection() as connection:
+        rows = connection.execute(
+            """
+            SELECT l.layout_id, l.layout_code, l.layout_json, l.active_flag,
+                   l.created_at, l.updated_at,
+                   COUNT(DISTINCT aza.article_code) AS assignment_count
+            FROM layouts l
+            LEFT JOIN article_zone_assignments aza
+              ON aza.store_code=l.store_code AND aza.layout_id=l.layout_id
+            WHERE l.store_code=?
+            GROUP BY l.layout_id, l.layout_code, l.layout_json, l.active_flag,
+                     l.created_at, l.updated_at
+            ORDER BY l.active_flag DESC, l.updated_at DESC
+            """, (store,)
+        ).fetchall()
+    result = []
+    for row in rows:
+        data = json.loads(row["layout_json"])
+        result.append({
+            "layoutId": row["layout_id"], "layoutCode": row["layout_code"],
+            "active": bool(row["active_flag"]), "zoneCount": len(data.get("zones", [])),
+            "assignmentCount": row["assignment_count"],
+            "imageName": (data.get("image") or {}).get("name") if isinstance(data.get("image"), dict) else None,
+            "createdAt": row["created_at"], "updatedAt": row["updated_at"]
+        })
+    return result
+
+
+@app.get("/api/admin/stores/{store}/layouts/{layout_id}")
+def admin_layout_detail(store: str, layout_id: str) -> dict[str, Any]:
+    with get_connection() as connection:
+        row = connection.execute(
+            "SELECT layout_json, active_flag, updated_at FROM layouts WHERE store_code=? AND layout_id=?",
+            (store, layout_id)
+        ).fetchone()
+    if row is None:
+        raise HTTPException(404, "Layout non trovato")
+    data = json.loads(row["layout_json"])
+    return {"active": bool(row["active_flag"]), "updatedAt": row["updated_at"], "layout": data}
+
+
+@app.get("/api/admin/stores/{store}/layouts/{layout_id}/download")
+def download_layout(store: str, layout_id: str) -> JSONResponse:
+    with get_connection() as connection:
+        row = connection.execute(
+            "SELECT layout_code, layout_json FROM layouts WHERE store_code=? AND layout_id=?",
+            (store, layout_id)
+        ).fetchone()
+    if row is None:
+        raise HTTPException(404, "Layout non trovato")
+    filename = f"{store}_{row['layout_code'] or layout_id}.json"
+    return JSONResponse(
+        content=json.loads(row["layout_json"]),
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )
+
+
+@app.post("/api/admin/stores/{store}/layouts/{layout_id}/activate")
+def activate_layout(store: str, layout_id: str) -> dict[str, str]:
+    with get_connection() as connection:
+        exists = connection.execute(
+            "SELECT 1 FROM layouts WHERE store_code=? AND layout_id=?", (store, layout_id)
+        ).fetchone()
+        if exists is None:
+            raise HTTPException(404, "Layout non trovato")
+        connection.execute("UPDATE layouts SET active_flag=0 WHERE store_code=?", (store,))
+        connection.execute(
+            "UPDATE layouts SET active_flag=1, updated_at=CURRENT_TIMESTAMP WHERE store_code=? AND layout_id=?",
+            (store, layout_id)
+        )
+    return {"layoutId": layout_id, "status": "ACTIVE"}
+
+
 @app.get("/api/admin/stores/{store}/articles")
 def admin_articles(
     store: str,
     search: str = "",
-    limit: int = Query(100, ge=1, le=500),
+    mappingStatus: str = Query("all", pattern="^(all|mapped|unmapped)$"),
+    sortBy: str = Query("articleCode", pattern="^(articleCode|description|barcodeCount|zoneCode)$"),
+    sortDir: str = Query("asc", pattern="^(asc|desc)$"),
+    limit: int = Query(25, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ) -> dict[str, Any]:
     pattern = f"%{search.strip()}%"
+    status_sql = {
+        "all": "",
+        "mapped": "AND aza.article_code IS NOT NULL",
+        "unmapped": "AND aza.article_code IS NULL",
+    }[mappingStatus]
+    order_column = {
+        "articleCode": "a.article_code",
+        "description": "a.description",
+        "barcodeCount": "barcode_count",
+        "zoneCode": "zone_code",
+    }[sortBy]
+    direction = "DESC" if sortDir == "desc" else "ASC"
 
     with get_connection() as connection:
         total = connection.execute(
-            """
+            f"""
             SELECT COUNT(DISTINCT sa.article_code)
             FROM store_articles sa
             JOIN articles a ON a.article_code = sa.article_code
+            LEFT JOIN article_zone_assignments aza
+              ON aza.store_code = sa.store_code AND aza.article_code = sa.article_code
             WHERE sa.store_code = ?
               AND sa.active_flag = 1
-              AND (? = '' OR a.article_code LIKE ? OR a.description LIKE ?)
+              AND (? = '' OR a.article_code LIKE ? OR a.description LIKE ?
+                   OR EXISTS (SELECT 1 FROM article_barcodes bx WHERE bx.article_code=a.article_code AND bx.ean LIKE ?))
+              {status_sql}
             """,
-            (store, search.strip(), pattern, pattern),
+            (store, search.strip(), pattern, pattern, pattern),
         ).fetchone()[0]
 
         rows = connection.execute(
-            """
+            f"""
             SELECT
-                a.article_code,
-                a.description,
-                a.image_url,
-                COUNT(DISTINCT b.ean) AS barcode_count
+                a.article_code, a.description, a.image_url,
+                COUNT(DISTINCT b.ean) AS barcode_count,
+                MAX(aza.zone_code) AS zone_code,
+                MAX(aza.updated_at) AS assignment_updated_at
             FROM store_articles sa
             JOIN articles a ON a.article_code = sa.article_code
             LEFT JOIN article_barcodes b ON b.article_code = a.article_code
+            LEFT JOIN article_zone_assignments aza
+              ON aza.store_code = sa.store_code AND aza.article_code = sa.article_code
             WHERE sa.store_code = ?
               AND sa.active_flag = 1
-              AND (? = '' OR a.article_code LIKE ? OR a.description LIKE ?)
+              AND (? = '' OR a.article_code LIKE ? OR a.description LIKE ?
+                   OR EXISTS (SELECT 1 FROM article_barcodes bx WHERE bx.article_code=a.article_code AND bx.ean LIKE ?))
+              {status_sql}
             GROUP BY a.article_code, a.description, a.image_url
-            ORDER BY a.article_code
+            ORDER BY {order_column} {direction}, a.article_code ASC
             LIMIT ? OFFSET ?
             """,
-            (store, search.strip(), pattern, pattern, limit, offset),
+            (store, search.strip(), pattern, pattern, pattern, limit, offset),
         ).fetchall()
 
     return {
-        "total": total,
-        "items": [
-            {
-                "articleCode": row["article_code"],
-                "description": row["description"],
-                "imageUrl": row["image_url"],
-                "barcodeCount": row["barcode_count"],
-            }
-            for row in rows
-        ],
+        "total": total, "limit": limit, "offset": offset,
+        "items": [{
+            "articleCode": row["article_code"], "description": row["description"],
+            "imageUrl": row["image_url"], "barcodeCount": row["barcode_count"],
+            "zoneCode": row["zone_code"],
+            "mappingStatus": "mapped" if row["zone_code"] else "unmapped",
+            "assignmentUpdatedAt": row["assignment_updated_at"],
+        } for row in rows],
+    }
+
+
+@app.get("/api/admin/stores/{store}/articles/{article}")
+def admin_article_detail(store: str, article: str) -> dict[str, Any]:
+    with get_connection() as connection:
+        row = connection.execute(
+            """SELECT a.article_code, a.description, a.image_url, sa.active_flag,
+                      aza.zone_code, aza.zone_id, aza.updated_at AS assignment_updated_at
+               FROM store_articles sa
+               JOIN articles a ON a.article_code=sa.article_code
+               LEFT JOIN article_zone_assignments aza
+                 ON aza.store_code=sa.store_code AND aza.article_code=sa.article_code
+               WHERE sa.store_code=? AND sa.article_code=?""",
+            (store, article),
+        ).fetchone()
+        if row is None:
+            raise HTTPException(404, "Articolo non trovato nel negozio")
+        barcodes = connection.execute(
+            """SELECT ean, color_code, size_code FROM article_barcodes
+               WHERE article_code=? ORDER BY ean""", (article,)
+        ).fetchall()
+    return {
+        "storeCode": store, "articleCode": row["article_code"],
+        "description": row["description"], "imageUrl": row["image_url"],
+        "active": bool(row["active_flag"]), "zoneCode": row["zone_code"],
+        "zoneId": row["zone_id"], "assignmentUpdatedAt": row["assignment_updated_at"],
+        "barcodes": [{"ean": b["ean"], "colorCode": b["color_code"], "sizeCode": b["size_code"]} for b in barcodes],
     }
 
 

@@ -1,17 +1,10 @@
-COPIA IL CONTENUTO DEL PACCHETTO NELLA ROOT:
+Copiare nel progetto:
 
-C:\Progetti\ZoneMind
+api\app\main.py
+public\admin\index.html
+public\admin\admin.js
+public\admin\admin.css
+public\assets\js\components\app-shell.js
 
-SOVRASCRIVI SOLO:
-- api\app\database.py
-- api\app\main.py
-- public\admin\index.html
-- public\admin\admin.js
-- public\admin\admin.css
-
-NON CANCELLARE:
-- api\data\zonemind.db
-- .venv
-- public\index.html
-- public\assets\js\mapper.js
-- public\assets\js\db.js
+Facoltativi: docs e releases.
+Non cancellare api\data\zonemind.db.

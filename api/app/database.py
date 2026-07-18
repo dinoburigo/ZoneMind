@@ -23,6 +23,10 @@ def initialize_database() -> None:
             CREATE TABLE IF NOT EXISTS stores(
                 store_code TEXT PRIMARY KEY,
                 store_name TEXT NOT NULL,
+                city TEXT,
+                country_code TEXT,
+                active_flag INTEGER NOT NULL DEFAULT 1,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
 
@@ -103,6 +107,12 @@ def initialize_database() -> None:
         # DEFAULT CURRENT_TIMESTAMP su tabelle già esistenti.
         # Aggiungiamo quindi la colonna senza default e valorizziamo
         # i record preesistenti con un UPDATE separato.
+
+        _ensure_column(connection, "stores", "city", "TEXT")
+        _ensure_column(connection, "stores", "country_code", "TEXT")
+        _ensure_column(connection, "stores", "active_flag", "INTEGER NOT NULL DEFAULT 1")
+        _ensure_timestamp_column(connection, "stores", "updated_at")
+
         _ensure_timestamp_column(
             connection,
             "stores",
@@ -122,6 +132,14 @@ def initialize_database() -> None:
             connection,
             "store_articles",
             "updated_at",
+        )
+
+        # La tabella layouts delle versioni precedenti non conteneva
+        # created_at. La pagina storico 0.8.5 usa questa colonna.
+        _ensure_timestamp_column(
+            connection,
+            "layouts",
+            "created_at",
         )
 
 
