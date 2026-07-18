@@ -3,20 +3,25 @@ from __future__ import annotations
 import csv
 import io
 import json
+import platform
+import sqlite3
+import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, File, HTTPException, Query, UploadFile
-from fastapi.responses import JSONResponse
+import fastapi
+from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from .database import get_connection, initialize_database
+from .database import DB_PATH, get_connection, initialize_database
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 PUBLIC_DIR = BASE_DIR / "public"
 
-app = FastAPI(title="ZoneMind API", version="0.8.5")
+app = FastAPI(title="ZoneMind API", version="0.8.7")
 
 
 class StorePayload(BaseModel):
@@ -35,6 +40,7 @@ class Assignment(BaseModel):
     zoneId: str = Field(min_length=1)
     zoneCode: str = Field(min_length=1)
     updatedAt: str = Field(min_length=1)
+    createdBy: str | None = None
 
 
 @app.on_event("startup")
@@ -57,7 +63,81 @@ def seed_layout_from_file() -> None:
 
 @app.get("/api/health")
 def health() -> dict[str, str]:
-    return {"status": "ok", "version": "0.8.5"}
+    return {"status": "ok", "version": "0.8.7"}
+
+
+
+def _human_size(size: int) -> str:
+    value = float(size)
+    for unit in ("B", "KB", "MB", "GB"):
+        if value < 1024 or unit == "GB":
+            return f"{value:.1f} {unit}" if unit != "B" else f"{int(value)} B"
+        value /= 1024
+    return f"{size} B"
+
+
+def _system_snapshot() -> dict[str, Any]:
+    labels = [
+        ("stores", "Negozi"),
+        ("articles", "Articoli"),
+        ("article_barcodes", "Barcode"),
+        ("store_articles", "Catalogo negozio"),
+        ("layouts", "Layout"),
+        ("article_zone_assignments", "Associazioni"),
+        ("import_runs", "Importazioni"),
+    ]
+    counts: list[dict[str, Any]] = []
+    integrity = "unavailable"
+    journal_mode = None
+    foreign_keys = False
+    with get_connection() as connection:
+        for table, label in labels:
+            count = connection.execute(f'SELECT COUNT(*) AS count FROM "{table}"').fetchone()["count"]
+            counts.append({"table": table, "label": label, "count": count})
+        integrity = connection.execute("PRAGMA integrity_check").fetchone()[0]
+        journal_mode = connection.execute("PRAGMA journal_mode").fetchone()[0]
+        foreign_keys = bool(connection.execute("PRAGMA foreign_keys").fetchone()[0])
+
+    exists = DB_PATH.exists()
+    stat = DB_PATH.stat() if exists else None
+    modified = datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat() if stat else None
+    return {
+        "api": {"status": "ok", "version": "0.8.7"},
+        "serverTime": datetime.now(timezone.utc).isoformat(),
+        "runtime": {
+            "python": platform.python_version(),
+            "fastapi": fastapi.__version__,
+            "sqlite": sqlite3.sqlite_version,
+            "platform": platform.platform(),
+        },
+        "database": {
+            "available": exists,
+            "path": str(DB_PATH.resolve()),
+            "sizeBytes": stat.st_size if stat else 0,
+            "sizeHuman": _human_size(stat.st_size if stat else 0),
+            "modifiedAt": modified,
+            "integrity": integrity,
+            "journalMode": journal_mode,
+            "foreignKeys": foreign_keys,
+        },
+        "counts": counts,
+    }
+
+
+@app.get("/api/admin/system")
+def system_status() -> dict[str, Any]:
+    return _system_snapshot()
+
+
+@app.get("/api/admin/system/diagnostics")
+def system_diagnostics() -> Response:
+    payload = json.dumps(_system_snapshot(), ensure_ascii=False, indent=2)
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    return Response(
+        content=payload,
+        media_type="application/json",
+        headers={"Content-Disposition": f'attachment; filename="zonemind-diagnostics-{stamp}.json"'},
+    )
 
 
 @app.get("/api/admin/stores")
@@ -611,36 +691,65 @@ def admin_article_detail(store: str, article: str) -> dict[str, Any]:
 
 
 @app.get("/api/admin/stores/{store}/assignments")
-def admin_assignments(store: str) -> list[dict[str, Any]]:
+def admin_assignments(
+    store: str, search: str = "", zoneCode: str = "all", layoutId: str = "active",
+    limit: int = Query(default=25, ge=1, le=500), offset: int = Query(default=0, ge=0),
+) -> dict[str, Any]:
+    clauses = ["aza.store_code = ?"]
+    params: list[Any] = [store]
+    if layoutId == "active": clauses.append("l.active_flag = 1")
+    elif layoutId != "all": clauses.append("aza.layout_id = ?"); params.append(layoutId)
+    if zoneCode != "all": clauses.append("aza.zone_code = ?"); params.append(zoneCode)
+    if search.strip():
+        clauses.append("(aza.article_code LIKE ? OR COALESCE(a.description,'') LIKE ? OR COALESCE(aza.scanned_ean,'') LIKE ?)")
+        term = f"%{search.strip()}%"; params.extend([term, term, term])
+    where = " AND ".join(clauses)
     with get_connection() as connection:
+        summary = connection.execute(
+            f"""SELECT COUNT(*) total, COUNT(DISTINCT aza.article_code) article_count,
+                       COUNT(DISTINCT aza.zone_code) zone_count, MAX(aza.updated_at) last_mapping
+                FROM article_zone_assignments aza JOIN layouts l ON l.layout_id=aza.layout_id
+                LEFT JOIN articles a ON a.article_code=aza.article_code WHERE {where}""", params
+        ).fetchone()
         rows = connection.execute(
-            """
-            SELECT
-                aza.article_code,
-                a.description,
-                aza.layout_id,
-                aza.zone_id,
-                aza.zone_code,
-                aza.updated_at
-            FROM article_zone_assignments aza
-            LEFT JOIN articles a ON a.article_code = aza.article_code
-            WHERE aza.store_code = ?
-            ORDER BY aza.zone_code, aza.article_code
-            """,
-            (store,),
-        ).fetchall()
+            f"""SELECT aza.article_code, a.description, aza.layout_id, l.layout_code,
+                       aza.zone_id, aza.zone_code, aza.scanned_ean, aza.updated_at,
+                       COALESCE(aza.source,'SCANNER') source, aza.created_by
+                FROM article_zone_assignments aza JOIN layouts l ON l.layout_id=aza.layout_id
+                LEFT JOIN articles a ON a.article_code=aza.article_code WHERE {where}
+                ORDER BY aza.updated_at DESC, aza.zone_code, aza.article_code LIMIT ? OFFSET ?""",
+            [*params, limit, offset]).fetchall()
+        zones = connection.execute("""SELECT DISTINCT aza.zone_code, aza.zone_id FROM article_zone_assignments aza
+               JOIN layouts l ON l.layout_id=aza.layout_id WHERE aza.store_code=? ORDER BY aza.zone_code""", (store,)).fetchall()
+        layouts = connection.execute("""SELECT layout_id, layout_code, active_flag FROM layouts
+               WHERE store_code=? ORDER BY active_flag DESC, updated_at DESC""", (store,)).fetchall()
+    return {
+      "total": summary["total"], "articleCount": summary["article_count"],
+      "zoneCount": summary["zone_count"], "lastMapping": summary["last_mapping"],
+      "items": [{"articleCode":r["article_code"],"description":r["description"],"layoutId":r["layout_id"],
+                 "layoutCode":r["layout_code"],"zoneId":r["zone_id"],"zoneCode":r["zone_code"],
+                 "scannedEan":r["scanned_ean"],"updatedAt":r["updated_at"],"source":r["source"],
+                 "createdBy":r["created_by"]} for r in rows],
+      "zones":[{"zoneCode":r["zone_code"],"zoneId":r["zone_id"]} for r in zones],
+      "layouts":[{"layoutId":r["layout_id"],"layoutCode":r["layout_code"],"active":bool(r["active_flag"])} for r in layouts]
+    }
 
-    return [
-        {
-            "articleCode": row["article_code"],
-            "description": row["description"],
-            "layoutId": row["layout_id"],
-            "zoneId": row["zone_id"],
-            "zoneCode": row["zone_code"],
-            "updatedAt": row["updated_at"],
-        }
-        for row in rows
-    ]
+
+@app.get("/api/admin/stores/{store}/assignments/export")
+def export_assignments(store: str, layoutId: str = "active") -> Response:
+    clauses=["aza.store_code=?"]; params: list[Any] = [store]
+    if layoutId == "active": clauses.append("l.active_flag=1")
+    elif layoutId != "all": clauses.append("aza.layout_id=?"); params.append(layoutId)
+    with get_connection() as connection:
+        rows=connection.execute(f"""SELECT aza.article_code,a.description,aza.zone_code,l.layout_code,
+            aza.scanned_ean,COALESCE(aza.source,'SCANNER') source,aza.created_by,aza.updated_at
+            FROM article_zone_assignments aza JOIN layouts l ON l.layout_id=aza.layout_id
+            LEFT JOIN articles a ON a.article_code=aza.article_code WHERE {' AND '.join(clauses)}
+            ORDER BY aza.updated_at DESC""",params).fetchall()
+    output=io.StringIO(); writer=csv.writer(output, delimiter=';')
+    writer.writerow(['Articolo','Descrizione','Zona','Layout','EAN','Origine','Operatore','Data/Ora'])
+    for r in rows: writer.writerow([r['article_code'],r['description'] or '',r['zone_code'],r['layout_code'],r['scanned_ean'] or '',r['source'],r['created_by'] or '',r['updated_at']])
+    return Response(content='\ufeff'+output.getvalue(), media_type='text/csv; charset=utf-8', headers={'Content-Disposition':f'attachment; filename="zonemind-{store}-assignments.csv"'})
 
 
 @app.get("/api/stores/{store}/barcodes")
@@ -709,13 +818,17 @@ def save_assignment(assignment: Assignment) -> dict[str, str]:
                 zone_id,
                 zone_code,
                 scanned_ean,
-                updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                updated_at,
+                source,
+                created_by
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, 'SCANNER', ?)
             ON CONFLICT(store_code, layout_id, article_code) DO UPDATE SET
                 zone_id = excluded.zone_id,
                 zone_code = excluded.zone_code,
                 scanned_ean = excluded.scanned_ean,
-                updated_at = excluded.updated_at
+                updated_at = excluded.updated_at,
+                source = 'SCANNER',
+                created_by = excluded.created_by
             """,
             (
                 assignment.storeCode,
@@ -725,6 +838,7 @@ def save_assignment(assignment: Assignment) -> dict[str, str]:
                 assignment.zoneCode,
                 assignment.scannedEan,
                 assignment.updatedAt,
+                assignment.createdBy,
             ),
         )
 

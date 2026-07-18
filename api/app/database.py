@@ -142,6 +142,15 @@ def initialize_database() -> None:
             "created_at",
         )
 
+        # Metadati di audit delle associazioni. I record storici vengono
+        # classificati come SCANNER, unica origine operativa prevista nella 0.8.6.
+        _ensure_column(connection, "article_zone_assignments", "source", "TEXT")
+        _ensure_column(connection, "article_zone_assignments", "created_by", "TEXT")
+        connection.execute(
+            "UPDATE article_zone_assignments SET source='SCANNER' "
+            "WHERE source IS NULL OR source=''"
+        )
+
 
 def _ensure_column(
     connection: sqlite3.Connection,

@@ -1,16 +1,14 @@
-ZoneMind 0.8.5.1 - Hotfix Layout History
+ZoneMind 0.8.6.1 - Hotfix Assignment Explorer
 
 Problema corretto:
-- il caricamento del layout veniva salvato correttamente;
-- la successiva lettura dello storico restituiva HTTP 500 perché nei database
-  creati con versioni precedenti mancava la colonna layouts.created_at.
+- l'endpoint assignments restituisce un oggetto paginato con la proprietà "items";
+- il vecchio caricamento sintetico della dashboard trattava la risposta come un array;
+- questo causava l'errore JavaScript: assignments.forEach is not a function.
 
 Installazione:
-1. Arrestare Uvicorn con CTRL+C.
-2. Sostituire api/app/database.py.
-3. NON cancellare api/data/zonemind.db.
-4. Riavviare api/run_api.bat.
-5. Riaprire /admin/ e selezionare Layout.
+1. Arrestare Uvicorn.
+2. Copiare public/admin/admin.js nel progetto, sostituendo il file esistente.
+3. Riavviare api/run_api.bat.
+4. Nel browser eseguire Ctrl+F5 per svuotare la cache della pagina.
 
-La migrazione aggiunge automaticamente layouts.created_at e valorizza i record
-esistenti. Il layout già pubblicato non deve essere ricaricato.
+Non modificare o cancellare api/data/zonemind.db.

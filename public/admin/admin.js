@@ -22,7 +22,18 @@ const elements = Object.fromEntries([
   "drawerStore", "drawerZone", "drawerStatus", "drawerUpdated", "drawerBarcodes",
   "layoutsPage", "layoutRefreshButton", "layoutManagementForm", "layoutManagementFile", "layoutManagementMessage",
   "activeLayoutName", "activeLayoutMeta", "activeLayoutZones", "activeLayoutAssignments", "layoutTableBody",
-  "layoutTableEmpty", "layoutPreviewPanel", "layoutPreviewTitle", "layoutZonePreview", "closeLayoutPreview"
+  "layoutTableEmpty", "layoutPreviewPanel", "layoutPreviewTitle", "layoutZonePreview", "closeLayoutPreview",
+  "assignmentsPage", "assignmentsRefreshButton", "assignmentsSearch", "assignmentsZone", "assignmentsLayout",
+  "assignmentsPageSize", "assignmentsResultTitle", "assignmentsResultInfo", "assignmentsManagementBody",
+  "assignmentsManagementEmpty", "assignmentsPrev", "assignmentsNext", "assignmentsPageInfo",
+  "assignmentsExportButton", "assignmentsKpiTotal", "assignmentsKpiArticles", "assignmentsKpiZones", "assignmentsKpiLast",
+  "assignmentDetailModal", "assignmentDetailArticle", "assignmentDetailDescription", "assignmentDetailStore",
+  "assignmentDetailZone", "assignmentDetailLayout", "assignmentDetailEan", "assignmentDetailSource",
+  "assignmentDetailUser", "assignmentDetailDate", "assignmentDetailClose",
+  "systemPage", "systemRefreshButton", "systemExportButton", "systemApiStatus", "systemApiVersion",
+  "systemDbStatus", "systemDbSize", "systemIntegrity", "systemServerTime", "systemFrontendVersion",
+  "systemBackendVersion", "systemPythonVersion", "systemFastApiVersion", "systemSqliteVersion", "systemPlatform",
+  "systemDbPath", "systemDbBytes", "systemDbModified", "systemJournalMode", "systemForeignKeys", "systemCountsBody"
 ].map(id => [id, document.getElementById(id)]));
 
 let currentStore = null;
@@ -32,11 +43,14 @@ let loadingDashboard = false;
 let currentSection = "dashboard";
 let catalogOffset = 0;
 let catalogTotal = 0;
+let assignmentsOffset = 0;
+let assignmentsTotal = 0;
+let assignmentsCache = [];
 
 initialize();
 
 async function initialize() {
-  initializeShell({ version: "0.8.5", onNavigate: showSection });
+  initializeShell({ version: "0.8.7", onNavigate: showSection });
   bindEvents();
 
   try {
@@ -89,6 +103,18 @@ function bindEvents() {
   elements.layoutRefreshButton.addEventListener("click", loadLayoutsPage);
   elements.layoutManagementForm.addEventListener("submit", uploadManagedLayout);
   elements.closeLayoutPreview.addEventListener("click", () => elements.layoutPreviewPanel.hidden = true);
+  elements.assignmentsRefreshButton.addEventListener("click", loadAssignmentsPage);
+  elements.assignmentsExportButton.addEventListener("click", exportAssignments);
+  elements.assignmentsSearch.addEventListener("input", debounce(() => { assignmentsOffset = 0; loadAssignmentsPage(); }, 250));
+  elements.assignmentsZone.addEventListener("change", () => { assignmentsOffset = 0; loadAssignmentsPage(); });
+  elements.assignmentsLayout.addEventListener("change", () => { assignmentsOffset = 0; loadAssignmentsPage(); });
+  elements.assignmentsPageSize.addEventListener("change", () => { assignmentsOffset = 0; loadAssignmentsPage(); });
+  elements.assignmentsPrev.addEventListener("click", () => { assignmentsOffset = Math.max(0, assignmentsOffset - Number(elements.assignmentsPageSize.value)); loadAssignmentsPage(); });
+  elements.assignmentsNext.addEventListener("click", () => { assignmentsOffset += Number(elements.assignmentsPageSize.value); loadAssignmentsPage(); });
+  elements.assignmentDetailClose.addEventListener("click", closeAssignmentDetail);
+  elements.systemRefreshButton.addEventListener("click", loadSystemPage);
+  elements.systemExportButton.addEventListener("click", exportSystemDiagnostics);
+  elements.assignmentDetailModal.addEventListener("click", event => { if (event.target === elements.assignmentDetailModal) closeAssignmentDetail(); });
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden && currentStore) loadDashboard({ silent: true });
   });
@@ -272,7 +298,8 @@ async function loadArticles() {
 
 async function loadAssignments() {
   if (!currentStore) return;
-  const assignments = await fetchJson(`/api/admin/stores/${encodeURIComponent(currentStore)}/assignments`);
+  const result = await fetchJson(`/api/admin/stores/${encodeURIComponent(currentStore)}/assignments`);
+  const assignments = Array.isArray(result) ? result : (Array.isArray(result.items) ? result.items : []);
   elements.assignmentTableBody.innerHTML = "";
   elements.assignmentEmpty.hidden = assignments.length > 0;
   assignments.forEach(assignment => {
@@ -314,17 +341,69 @@ function showSection(section) {
   elements.storesPage.hidden = section !== "stores";
   elements.catalogPage.hidden = section !== "catalog";
   elements.layoutsPage.hidden = section !== "layouts";
+  elements.assignmentsPage.hidden = section !== "assignments";
+  elements.systemPage.hidden = section !== "system";
   const labels = {
     dashboard: ["Dashboard", "Stato operativo e sintesi dei dati ZoneMind"],
     stores: ["Negozi", "Anagrafica e stato dei punti vendita"],
     catalog: ["Catalogo", "Ricerca, filtri e dettaglio degli articoli del negozio"],
-    layouts: ["Layout", "Pubblicazione e storico delle planimetrie del negozio"]
+    layouts: ["Layout", "Pubblicazione e storico delle planimetrie del negozio"],
+    assignments: ["Associazioni", "Consultazione in sola lettura della mappatura articolo-zona"],
+    system: ["Sistema", "Stato tecnico, versioni e diagnostica dell’applicazione"]
   };
   elements.pageTitle.textContent = labels[section]?.[0] || "ZoneMind";
   elements.pageSubtitle.textContent = labels[section]?.[1] || "Admin Console";
   if (section === "stores") renderStoreTable();
   if (section === "catalog") loadCatalogPage();
   if (section === "layouts") loadLayoutsPage();
+  if (section === "assignments") loadAssignmentsPage();
+  if (section === "system") loadSystemPage();
+}
+
+
+async function loadSystemPage() {
+  if (!elements.systemPage) return;
+  elements.systemRefreshButton.disabled = true;
+  elements.systemRefreshButton.textContent = "Aggiornamento…";
+  try {
+    const data = await fetchJson("/api/admin/system");
+    elements.systemApiStatus.textContent = data.api.status === "ok" ? "Online" : "Errore";
+    elements.systemApiVersion.textContent = `API ${data.api.version}`;
+    elements.systemDbStatus.textContent = data.database.available ? "Disponibile" : "Non disponibile";
+    elements.systemDbSize.textContent = data.database.sizeHuman;
+    elements.systemIntegrity.textContent = data.database.integrity === "ok" ? "OK" : data.database.integrity;
+    elements.systemServerTime.textContent = formatDate(data.serverTime);
+    elements.systemBackendVersion.textContent = data.api.version;
+    elements.systemPythonVersion.textContent = data.runtime.python;
+    elements.systemFastApiVersion.textContent = data.runtime.fastapi;
+    elements.systemSqliteVersion.textContent = data.runtime.sqlite;
+    elements.systemPlatform.textContent = data.runtime.platform;
+    elements.systemDbPath.textContent = data.database.path;
+    elements.systemDbBytes.textContent = `${Number(data.database.sizeBytes || 0).toLocaleString("it-IT")} byte (${data.database.sizeHuman})`;
+    elements.systemDbModified.textContent = formatDate(data.database.modifiedAt);
+    elements.systemJournalMode.textContent = data.database.journalMode || "—";
+    elements.systemForeignKeys.textContent = data.database.foreignKeys ? "Attive" : "Non attive";
+    elements.systemCountsBody.innerHTML = data.counts.map(item => `
+      <tr><td><strong>${escapeHtml(item.label)}</strong></td><td>${escapeHtml(item.table)}</td><td>${Number(item.count).toLocaleString("it-IT")}</td></tr>`).join("");
+    showToast("Diagnostica aggiornata.", "success");
+  } catch (error) {
+    elements.systemApiStatus.textContent = "Errore";
+    elements.systemDbStatus.textContent = "Non verificabile";
+    elements.systemIntegrity.textContent = "Non verificabile";
+    showToast(error.message, "error");
+  } finally {
+    elements.systemRefreshButton.disabled = false;
+    elements.systemRefreshButton.textContent = "Aggiorna";
+  }
+}
+
+function exportSystemDiagnostics() {
+  const link = document.createElement("a");
+  link.href = "/api/admin/system/diagnostics";
+  link.download = `zonemind-diagnostics-${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
 }
 
 function renderStoreTable() {
@@ -529,3 +608,66 @@ async function activateLayout(layoutId) {
     await loadDashboard({ silent: true });
   } catch (error) { showToast(error.message, "error"); }
 }
+
+
+async function loadAssignmentsPage() {
+  if (!currentStore || currentSection !== "assignments") return;
+  const limit = Number(elements.assignmentsPageSize.value || 25);
+  const params = new URLSearchParams({
+    search: elements.assignmentsSearch.value.trim(), zoneCode: elements.assignmentsZone.value || "all",
+    layoutId: elements.assignmentsLayout.value || "active", limit: String(limit), offset: String(assignmentsOffset)
+  });
+  try {
+    const result = await fetchJson(`/api/admin/stores/${encodeURIComponent(currentStore)}/assignments?${params}`);
+    assignmentsTotal = Number(result.total || 0); assignmentsCache = result.items || [];
+    elements.assignmentsKpiTotal.textContent = assignmentsTotal.toLocaleString("it-IT");
+    elements.assignmentsKpiArticles.textContent = Number(result.articleCount || 0).toLocaleString("it-IT");
+    elements.assignmentsKpiZones.textContent = Number(result.zoneCount || 0).toLocaleString("it-IT");
+    elements.assignmentsKpiLast.textContent = result.lastMapping ? formatDate(result.lastMapping) : "—";
+    fillAssignmentFilters(result.zones || [], result.layouts || []);
+    renderAssignmentRows(assignmentsCache, limit);
+  } catch (error) { showToast(error.message, "error"); }
+}
+
+function fillAssignmentFilters(zones, layouts) {
+  const zoneValue = elements.assignmentsZone.value || "all";
+  elements.assignmentsZone.innerHTML = '<option value="all">Tutte</option>' + zones.map(z => `<option value="${escapeHtml(z.zoneCode)}">${escapeHtml(z.zoneCode)}</option>`).join("");
+  if ([...elements.assignmentsZone.options].some(o => o.value === zoneValue)) elements.assignmentsZone.value = zoneValue;
+  const layoutValue = elements.assignmentsLayout.value || "active";
+  elements.assignmentsLayout.innerHTML = '<option value="active">Layout attivo</option><option value="all">Tutti i layout</option>' + layouts.map(l => `<option value="${escapeHtml(l.layoutId)}">${escapeHtml(l.layoutCode)}${l.active ? " · attivo" : ""}</option>`).join("");
+  if ([...elements.assignmentsLayout.options].some(o => o.value === layoutValue)) elements.assignmentsLayout.value = layoutValue;
+}
+
+function renderAssignmentRows(items, limit) {
+  elements.assignmentsManagementBody.innerHTML = items.map((item, index) => `<tr class="clickable-row" data-index="${index}">
+    <td><strong>${escapeHtml(item.zoneCode)}</strong></td><td>${escapeHtml(item.articleCode)}</td><td>${escapeHtml(item.description || "—")}</td>
+    <td>${escapeHtml(item.scannedEan || "—")}</td><td>${escapeHtml(item.layoutCode || item.layoutId)}</td>
+    <td><span class="source-badge">${escapeHtml(item.source || "SCANNER")}</span></td><td>${formatDate(item.updatedAt)}</td></tr>`).join("");
+  elements.assignmentsManagementEmpty.hidden = items.length > 0;
+  const first = assignmentsTotal ? assignmentsOffset + 1 : 0, last = Math.min(assignmentsOffset + items.length, assignmentsTotal);
+  elements.assignmentsResultTitle.textContent = `${assignmentsTotal.toLocaleString("it-IT")} associazioni`;
+  elements.assignmentsResultInfo.textContent = `${currentStore} · risultati ${first}-${last} · sola lettura`;
+  const page = Math.floor(assignmentsOffset / limit) + 1, pages = Math.max(1, Math.ceil(assignmentsTotal / limit));
+  elements.assignmentsPageInfo.textContent = `Pagina ${page} di ${pages}`; elements.assignmentsPrev.disabled = assignmentsOffset === 0; elements.assignmentsNext.disabled = assignmentsOffset + limit >= assignmentsTotal;
+  elements.assignmentsManagementBody.querySelectorAll(".clickable-row").forEach(row => row.addEventListener("click", () => openAssignmentDetail(assignmentsCache[Number(row.dataset.index)])));
+}
+
+function openAssignmentDetail(item) {
+  elements.assignmentDetailArticle.textContent = item.articleCode;
+  elements.assignmentDetailDescription.textContent = item.description || "Nessuna descrizione";
+  elements.assignmentDetailStore.textContent = currentStore || "—";
+  elements.assignmentDetailZone.textContent = item.zoneCode || "—";
+  elements.assignmentDetailLayout.textContent = item.layoutCode || item.layoutId || "—";
+  elements.assignmentDetailEan.textContent = item.scannedEan || "—";
+  elements.assignmentDetailSource.textContent = item.source || "SCANNER";
+  elements.assignmentDetailUser.textContent = item.createdBy || "Non disponibile";
+  elements.assignmentDetailDate.textContent = item.updatedAt ? formatDate(item.updatedAt) : "—";
+  elements.assignmentDetailModal.hidden = false;
+}
+function closeAssignmentDetail() { elements.assignmentDetailModal.hidden = true; }
+function exportAssignments() {
+  if (!currentStore) return;
+  const layoutId = encodeURIComponent(elements.assignmentsLayout.value || "active");
+  window.location.href = `/api/admin/stores/${encodeURIComponent(currentStore)}/assignments/export?layoutId=${layoutId}`;
+}
+

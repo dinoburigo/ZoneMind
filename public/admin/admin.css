@@ -136,3 +136,36 @@ tbody tr:hover { background: #f8fafb; }
 
 /* 0.8.5 Layout management */
 .layouts-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}.layout-summary-card{background:linear-gradient(145deg,#fff,#f4f9ff);border-color:#bfd9f5}.layout-summary-metrics{display:grid;grid-template-columns:1fr 1fr;gap:12px}.layout-summary-metrics>div{padding:14px;border-radius:10px;background:#fff;border:1px solid #e1e7ec;display:grid;gap:5px}.layout-summary-metrics small{color:#71808d}.layout-summary-metrics strong{font-size:1.7rem}.row-actions{display:flex;gap:7px;align-items:center;flex-wrap:wrap}.row-actions button,.button-link{min-height:34px;padding:7px 10px;font-size:.78rem}.button-link{display:inline-flex;align-items:center;border-radius:8px;background:#eef3f7;color:#17212b;text-decoration:none;font-weight:750}.zone-chip-list{display:flex;flex-wrap:wrap;gap:8px}.zone-chip{display:inline-flex;padding:7px 10px;border-radius:999px;background:#edf5fd;color:#145c9e;font-weight:800;font-size:.82rem}@media(max-width:850px){.layouts-grid{grid-template-columns:1fr}}
+
+
+.assignment-filters { grid-template-columns: minmax(240px,2fr) repeat(3,minmax(140px,1fr)); }
+.danger-button { background:#fff; color:#b42318; border:1px solid #f0b7b2; padding:.55rem .75rem; border-radius:8px; cursor:pointer; font-weight:600; }
+.danger-button:hover { background:#fff1f0; }
+.modal-backdrop { position:fixed; inset:0; z-index:60; background:rgba(15,23,42,.48); display:flex; align-items:center; justify-content:center; padding:1rem; }
+.modal-backdrop[hidden] { display:none; }
+.modal-card { width:min(520px,100%); background:#fff; border-radius:16px; padding:1.4rem; box-shadow:0 24px 70px rgba(15,23,42,.28); }
+.modal-field { display:grid; gap:.45rem; margin:1.2rem 0; }
+.modal-field span { font-size:.8rem; font-weight:700; color:#475467; }
+.modal-field select { min-height:44px; border:1px solid #cfd8e3; border-radius:9px; padding:.65rem; background:#fff; }
+@media(max-width:900px){ .assignment-filters{grid-template-columns:1fr 1fr;} }
+@media(max-width:600px){ .assignment-filters{grid-template-columns:1fr;} }
+
+/* 0.8.6 Assignment Explorer - read only */
+.assignment-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:16px}.assignment-kpis .panel{display:grid;gap:7px;padding:16px}.assignment-kpis small{color:#71808d}.assignment-kpis strong{font-size:1.55rem}.clickable-row{cursor:pointer}.clickable-row:hover{background:#f5f9fc}.source-badge{display:inline-flex;padding:5px 8px;border-radius:999px;background:#edf7f0;color:#247044;font-size:.75rem;font-weight:800}.drawer-grid>div{min-width:0}.drawer-grid strong{overflow-wrap:anywhere}@media(max-width:900px){.assignment-kpis{grid-template-columns:1fr 1fr}}@media(max-width:560px){.assignment-kpis{grid-template-columns:1fr}}
+
+
+/* Sprint 0.8.7 - System Console */
+.system-kpis { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px; margin-bottom:16px; }
+.system-kpis article { display:flex; flex-direction:column; gap:7px; min-height:112px; }
+.system-kpis small, .system-kpis span { color:var(--muted, #64748b); }
+.system-kpis strong { font-size:1.25rem; }
+.system-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; margin-bottom:16px; }
+.system-detail-list { margin:0; display:grid; gap:0; }
+.system-detail-list div { display:grid; grid-template-columns:155px minmax(0,1fr); gap:16px; padding:12px 0; border-bottom:1px solid #e5e7eb; }
+.system-detail-list div:last-child { border-bottom:0; }
+.system-detail-list dt { color:#64748b; }
+.system-detail-list dd { margin:0; font-weight:650; text-align:right; }
+.break-value { overflow-wrap:anywhere; }
+.system-note { margin-top:16px; border-left:4px solid #277fd0; }
+@media (max-width: 980px) { .system-kpis { grid-template-columns:repeat(2,minmax(0,1fr)); } .system-grid { grid-template-columns:1fr; } }
+@media (max-width: 620px) { .system-kpis { grid-template-columns:1fr; } .system-detail-list div { grid-template-columns:1fr; gap:4px; } .system-detail-list dd { text-align:left; } }

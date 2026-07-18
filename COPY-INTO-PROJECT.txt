@@ -1,10 +1,12 @@
-Copiare nel progetto:
+ZONE MIND 0.8.7
 
-api\app\main.py
-public\admin\index.html
-public\admin\admin.js
-public\admin\admin.css
-public\assets\js\components\app-shell.js
+Copia nel progetto mantenendo le cartelle:
+- api/app/main.py
+- public/admin/index.html
+- public/admin/admin.js
+- public/admin/admin.css
+- public/assets/js/components/app-shell.js
 
 Facoltativi: docs e releases.
-Non cancellare api\data\zonemind.db.
+NON cancellare o sostituire api/data/zonemind.db.
+Riavvia api/run_api.bat e premi Ctrl+F5 nel browser.

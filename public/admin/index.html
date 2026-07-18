@@ -15,7 +15,7 @@
         <span class="brand-area">Admin Console</span>
       </div>
       <nav id="appMenu" class="app-menu" aria-label="Navigazione Admin"></nav>
-      <div class="sidebar-footer">Frontend <span id="frontendVersion">0.8.5</span></div>
+      <div class="sidebar-footer">Frontend <span id="frontendVersion">0.8.7</span></div>
     </aside>
 
     <div class="app-main">
@@ -266,6 +266,95 @@
           <article id="layoutPreviewPanel" class="panel" hidden>
             <div class="panel-heading"><div><span class="section-kicker">Anteprima tecnica</span><h2 id="layoutPreviewTitle">Layout</h2><p>Riepilogo delle zone contenute nel JSON.</p></div><button id="closeLayoutPreview" class="ghost-button" type="button">Chiudi</button></div>
             <div id="layoutZonePreview" class="zone-chip-list"></div>
+          </article>
+        </section>
+
+        <section id="assignmentsPage" class="admin-page" hidden>
+          <div class="dashboard-heading">
+            <div><span class="section-kicker">Mappatura</span><h2>Assignment Explorer</h2><p>Consulta le associazioni generate dal Mapper. Questa sezione è in sola lettura.</p></div>
+            <div class="row-actions"><button id="assignmentsExportButton" type="button">Esporta CSV</button><button id="assignmentsRefreshButton" type="button" class="ghost-button">Aggiorna</button></div>
+          </div>
+          <div class="assignment-kpis">
+            <article class="panel"><small>Associazioni</small><strong id="assignmentsKpiTotal">0</strong></article>
+            <article class="panel"><small>Articoli mappati</small><strong id="assignmentsKpiArticles">0</strong></article>
+            <article class="panel"><small>Zone utilizzate</small><strong id="assignmentsKpiZones">0</strong></article>
+            <article class="panel"><small>Ultimo mapping</small><strong id="assignmentsKpiLast">—</strong></article>
+          </div>
+          <article class="panel catalog-filter-panel">
+            <div class="catalog-filters assignment-filters">
+              <label><span>Ricerca</span><input id="assignmentsSearch" type="search" placeholder="Articolo, descrizione o EAN"></label>
+              <label><span>Zona</span><select id="assignmentsZone"><option value="all">Tutte</option></select></label>
+              <label><span>Layout</span><select id="assignmentsLayout"><option value="active">Layout attivo</option><option value="all">Tutti i layout</option></select></label>
+              <label><span>Righe</span><select id="assignmentsPageSize"><option>10</option><option selected>25</option><option>50</option><option>100</option></select></label>
+            </div>
+          </article>
+          <article class="panel table-panel">
+            <div class="panel-heading table-toolbar"><div><span class="section-kicker">Elenco</span><h2 id="assignmentsResultTitle">Associazioni</h2><p id="assignmentsResultInfo">Seleziona un negozio per consultare le associazioni.</p></div></div>
+            <div class="table-wrapper"><table><thead><tr><th>Zona</th><th>Articolo</th><th>Descrizione</th><th>EAN scansito</th><th>Layout</th><th>Origine</th><th>Data/Ora</th></tr></thead><tbody id="assignmentsManagementBody"></tbody></table></div>
+            <div id="assignmentsManagementEmpty" class="table-empty" hidden>Nessuna associazione trovata.</div>
+            <div class="pagination-bar"><button id="assignmentsPrev" class="ghost-button" type="button">Precedente</button><span id="assignmentsPageInfo">Pagina 1</span><button id="assignmentsNext" class="ghost-button" type="button">Successiva</button></div>
+          </article>
+          <div id="assignmentDetailModal" class="modal-backdrop" hidden>
+            <article class="modal-card">
+              <div class="drawer-header"><div><span class="section-kicker">Dettaglio associazione</span><h2 id="assignmentDetailArticle">—</h2></div><button id="assignmentDetailClose" class="icon-button" type="button">×</button></div>
+              <p id="assignmentDetailDescription" class="drawer-description">—</p>
+              <div class="drawer-grid">
+                <div><small>Store</small><strong id="assignmentDetailStore">—</strong></div><div><small>Zona</small><strong id="assignmentDetailZone">—</strong></div>
+                <div><small>Layout</small><strong id="assignmentDetailLayout">—</strong></div><div><small>EAN</small><strong id="assignmentDetailEan">—</strong></div>
+                <div><small>Origine</small><strong id="assignmentDetailSource">SCANNER</strong></div><div><small>Operatore</small><strong id="assignmentDetailUser">—</strong></div>
+                <div><small>Data/Ora</small><strong id="assignmentDetailDate">—</strong></div>
+              </div>
+            </article>
+          </div>
+        </section>
+
+
+
+        <section id="systemPage" class="admin-page" hidden>
+          <div class="dashboard-heading">
+            <div><span class="section-kicker">Diagnostica</span><h2>System Console</h2><p>Stato tecnico dell'applicazione e del database. Le funzioni disponibili sono non distruttive.</p></div>
+            <div class="row-actions"><button id="systemExportButton" type="button">Esporta diagnostica</button><button id="systemRefreshButton" type="button" class="ghost-button">Aggiorna</button></div>
+          </div>
+
+          <div class="system-kpis">
+            <article class="panel"><small>API</small><strong id="systemApiStatus">Verifica…</strong><span id="systemApiVersion">—</span></article>
+            <article class="panel"><small>Database</small><strong id="systemDbStatus">Verifica…</strong><span id="systemDbSize">—</span></article>
+            <article class="panel"><small>Integrità</small><strong id="systemIntegrity">Verifica…</strong><span>PRAGMA integrity_check</span></article>
+            <article class="panel"><small>Ora server</small><strong id="systemServerTime">—</strong><span id="systemUptimeNote">lettura in tempo reale</span></article>
+          </div>
+
+          <div class="system-grid">
+            <article class="panel">
+              <div class="panel-heading"><div><span class="section-kicker">Applicazione</span><h2>Versioni e runtime</h2><p>Informazioni utili per assistenza e troubleshooting.</p></div></div>
+              <dl class="system-detail-list">
+                <div><dt>Frontend</dt><dd id="systemFrontendVersion">0.8.7</dd></div>
+                <div><dt>Backend</dt><dd id="systemBackendVersion">—</dd></div>
+                <div><dt>Python</dt><dd id="systemPythonVersion">—</dd></div>
+                <div><dt>FastAPI</dt><dd id="systemFastApiVersion">—</dd></div>
+                <div><dt>SQLite</dt><dd id="systemSqliteVersion">—</dd></div>
+                <div><dt>Sistema operativo</dt><dd id="systemPlatform">—</dd></div>
+              </dl>
+            </article>
+
+            <article class="panel">
+              <div class="panel-heading"><div><span class="section-kicker">Archivio</span><h2>Database SQLite</h2><p>Percorso, dimensione e data ultima modifica.</p></div></div>
+              <dl class="system-detail-list">
+                <div><dt>File</dt><dd id="systemDbPath" class="break-value">—</dd></div>
+                <div><dt>Dimensione</dt><dd id="systemDbBytes">—</dd></div>
+                <div><dt>Ultima modifica</dt><dd id="systemDbModified">—</dd></div>
+                <div><dt>Journal mode</dt><dd id="systemJournalMode">—</dd></div>
+                <div><dt>Foreign keys</dt><dd id="systemForeignKeys">—</dd></div>
+              </dl>
+            </article>
+          </div>
+
+          <article class="panel table-panel">
+            <div class="panel-heading"><div><span class="section-kicker">Volumi</span><h2>Conteggi tecnici</h2><p>Numero di record nelle principali entità ZoneMind.</p></div></div>
+            <div class="table-wrapper"><table><thead><tr><th>Entità</th><th>Tabella</th><th>Record</th></tr></thead><tbody id="systemCountsBody"></tbody></table></div>
+          </article>
+
+          <article class="panel system-note">
+            <div><span class="section-kicker">Sicurezza operativa</span><h2>Nessuna funzione distruttiva</h2><p>La System Console non cancella dati, non ricrea il database e non modifica la configurazione. L'esportazione produce soltanto un file JSON diagnostico.</p></div>
           </article>
         </section>
 

@@ -3,11 +3,11 @@ const menuItems = [
   { id: "stores", label: "Negozi", enabled: true },
   { id: "catalog", label: "Catalogo", enabled: true },
   { id: "layouts", label: "Layout", enabled: true },
-  { id: "assignments", label: "Associazioni", enabled: false },
-  { id: "system", label: "Sistema", enabled: false }
+  { id: "assignments", label: "Associazioni", enabled: true },
+  { id: "system", label: "Sistema", enabled: true }
 ];
 
-export function initializeShell({ version = "0.8.5", onNavigate } = {}) {
+export function initializeShell({ version = "0.8.7", onNavigate } = {}) {
   const sidebar = document.getElementById("appSidebar");
   const menu = document.getElementById("appMenu");
   const menuToggle = document.getElementById("menuToggle");
