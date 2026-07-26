@@ -1,95 +1,161 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="it">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#12202c">
+  <meta name="application-name" content="ZoneMind Mapper">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="ZoneMind">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/assets/icons/icon-192.png">
   <title>ZoneMind Mapper</title>
-  <link rel="stylesheet" href="./assets/css/mapper.css">
-  <script src="https://unpkg.com/html5-qrcode"></script>
+  <link rel="stylesheet" href="/assets/css/mapper.css">
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js" defer></script>
 </head>
 <body>
-  <header class="app-header">
-    <h1>ZoneMind Mapper</h1>
-    <div id="storeInfo">Caricamento...</div>
+  <header class="topbar">
+    <div><strong>ZoneMind</strong><span>Mapper 0.9.6</span></div>
+    <div class="topbar-status">
+      <div id="connectionBadge" class="status status-wait">Connessione…</div>
+      <div id="syncBadge" class="status status-sync">0 in coda</div>
+    </div>
   </header>
 
   <main>
-    <section class="layout-section">
-      <div class="section-heading">
-        <h2>Planimetria</h2>
-        <p>Tocca una zona per iniziare la lettura barcode.</p>
-      </div>
-
-      <div id="layoutViewport" class="layout-viewport">
-        <div class="layout-canvas">
-          <img id="floorplanImage" alt="Planimetria del negozio" draggable="false">
-          <svg id="zoneLayer" xmlns="http://www.w3.org/2000/svg" aria-label="Zone della planimetria"></svg>
-        </div>
-      </div>
+    <section id="setupPanel" class="card">
+      <p class="eyebrow">NEGOZIO</p>
+      <h1>Avvia la mappatura</h1>
+      <label for="storeSelect">Negozio operativo</label>
+      <select id="storeSelect"><option value="">Caricamento…</option></select>
+      <label for="operatorName" class="operator-label">Operatore</label>
+      <input id="operatorName" autocomplete="name" placeholder="Nome o matricola operatore">
+      <button id="loadButton" class="primary" type="button">Carica layout</button>
+      <p id="setupMessage" class="helper">Seleziona il negozio e carica il layout attivo.</p>
     </section>
 
-    <section id="selectedZoneSection" class="selected-zone-section" hidden>
-      <div>
-        <span class="eyebrow">Zona selezionata</span>
-        <h2 id="selectedZoneCode">-</h2>
+    <section id="workspace" hidden>
+      <div class="workspace-head">
+        <div><p class="eyebrow">LAYOUT ATTIVO</p><h1 id="layoutTitle">—</h1><p id="storeTitle" class="helper"></p></div>
+        <button id="changeStoreButton" class="secondary" type="button">Cambia negozio</button>
       </div>
-      <div class="selected-zone-count">
-        <strong id="selectedZoneArticleCount">0</strong>
-        <span>articoli associati</span>
-      </div>
-      <button id="viewArticlesButton" class="secondary-button" type="button" disabled>
-        Visualizza articoli
-        <small>Disponibile in una prossima release</small>
-      </button>
-    </section>
 
-    <section class="zone-summary-section">
-      <div class="section-heading">
-        <h2>Riepilogo zone</h2>
-        <p>Tocca una zona per consultarne il totale.</p>
-      </div>
-      <div id="zoneSummaryList" class="zone-summary-list">Caricamento...</div>
-    </section>
+      <section id="offlineNotice" class="offline-notice" hidden>
+        <strong>Modalità offline</strong>
+        <span>Layout e catalogo sono caricati dalla cache del dispositivo. Le nuove operazioni saranno conservate localmente.</span>
+      </section>
 
-    <section id="scannerPanel" class="scanner-screen" hidden>
-      <div class="scanner-header">
+      <section class="card sync-card">
         <div>
-          <div class="scanner-label">Zona attiva</div>
-          <h2 id="scannerTitle">-</h2>
+          <p class="eyebrow">SINCRONIZZAZIONE</p>
+          <strong id="syncStatusText">Tutto sincronizzato</strong>
+          <small id="syncStatusDetail">Nessuna operazione locale in attesa.</small>
         </div>
-        <button id="changeZoneButton" class="change-zone-button" type="button">Termina lettura</button>
-      </div>
+        <div class="sync-actions">
+          <button id="installAppButton" class="secondary" type="button" hidden>Installa app</button>
+          <button id="simulateOfflineButton" class="secondary dev-toggle" type="button">Simula offline</button>
+          <button id="resolveConflictsButton" class="secondary conflict-button" type="button" hidden>Risolvi conflitti</button>
+          <button id="syncNowButton" class="secondary" type="button">Sincronizza ora</button>
+        </div>
+      </section>
 
-      <div class="camera-container">
-        <div id="reader"></div>
-        <div class="scan-overlay" aria-hidden="true">
-          <div class="scan-target">
-            <span class="corner top-left"></span>
-            <span class="corner top-right"></span>
-            <span class="corner bottom-left"></span>
-            <span class="corner bottom-right"></span>
-            <div class="scan-line"></div>
-          </div>
+      <section class="card map-card">
+        <div id="mapStage" class="map-stage" hidden>
+          <img id="floorplanImage" alt="Planimetria del negozio">
+          <svg id="zoneOverlay" aria-label="Zone selezionabili sulla planimetria"></svg>
         </div>
-      </div>
+        <h2>Seleziona una zona</h2>
+        <p class="helper">Tocca la zona sulla planimetria oppure usa i pulsanti.</p>
+        <div id="zoneList" class="zone-grid"></div>
+      </section>
 
-      <div class="scanner-message-area">
-        <div id="message">Inquadra il barcode dell'articolo</div>
-      </div>
+      <section class="card summary-card">
+        <div><span>Articoli nel layout</span><strong id="mappedCount">0</strong></div>
+        <div><span>Zone utilizzate</span><strong id="usedZoneCount">0</strong></div>
+        <div><span>Ultima attività</span><strong id="lastActivity">—</strong></div>
+      </section>
 
-      <div class="scanner-footer">
-        <div class="counter">
-          <span>Articoli zona</span>
-          <strong id="associatedCount">0</strong>
-        </div>
-        <div class="counter">
-          <span>Anomalie sessione</span>
-          <strong id="unresolvedCount">0</strong>
-        </div>
-      </div>
+      <section class="card">
+        <div class="section-head"><div><p class="eyebrow">ULTIME ASSOCIAZIONI</p><h2>Attività recente</h2></div><button id="refreshButton" class="secondary" type="button">Aggiorna</button></div>
+        <div id="recentList" class="recent-list"><p class="empty">Nessuna associazione.</p></div>
+      </section>
     </section>
   </main>
 
-  <script type="module" src="./assets/js/mapper.js"></script>
+  <section id="scannerPanel" class="scanner" hidden>
+    <header class="scanner-head">
+      <div><span>Zona selezionata</span><strong id="selectedZoneCode">—</strong></div>
+      <button id="closeScannerButton" type="button">Esci dalla scansione</button>
+    </header>
+    <div class="camera-wrap">
+      <div id="reader"></div>
+      <div class="aim" aria-hidden="true"><i></i></div>
+    </div>
+    <div id="scanFeedback" class="scan-feedback">Inquadra il barcode</div>
+    <section class="last-scan" aria-live="polite">
+      <span>Ultimo articolo</span>
+      <strong id="lastScanArticle">—</strong>
+      <small id="lastScanDescription">Nessuna scansione nella sessione</small>
+    </section>
+    <div class="scanner-actions">
+      <button id="toggleScannerButton" type="button">Pausa fotocamera</button>
+    </div>
+    <form id="manualForm" class="manual-form">
+      <input id="manualEan" inputmode="numeric" autocomplete="off" placeholder="EAN per test manuale">
+      <button type="submit">Registra</button>
+    </form>
+    <div id="sessionLog" class="session-log"><p>Nessuna attività nella sessione.</p></div>
+    <footer class="scanner-stats">
+      <div><span>Registrati</span><strong id="sessionMapped">0</strong></div>
+      <div><span>Anomalie</span><strong id="sessionErrors">0</strong></div>
+    </footer>
+  </section>
+
+  <section id="updateNotice" class="update-notice" hidden>
+    <span>È disponibile una nuova versione di ZoneMind.</span>
+    <button id="applyUpdateButton" type="button">Aggiorna ora</button>
+  </section>
+
+  <div id="toast" class="toast" hidden></div>
+  <dialog id="relocationDialog" class="relocation-dialog">
+    <div class="relocation-content">
+      <p class="eyebrow">ARTICOLO GIÀ MAPPATO</p>
+      <h2 id="relocationArticle">—</h2>
+      <p id="relocationDescription" class="helper"></p>
+      <div class="relocation-route" aria-label="Spostamento proposto">
+        <div><span>Zona attuale</span><strong id="relocationFrom">—</strong></div>
+        <b aria-hidden="true">→</b>
+        <div><span>Nuova zona</span><strong id="relocationTo">—</strong></div>
+      </div>
+      <p>Vuoi attribuire l'articolo alla zona corrente rimuovendolo dalla precedente?</p>
+      <div class="relocation-actions">
+        <button id="cancelRelocationButton" class="secondary" type="button">Annulla</button>
+        <button id="confirmRelocationButton" class="primary relocation-confirm" type="button">Sposta articolo</button>
+      </div>
+    </div>
+  </dialog>
+
+
+  <dialog id="conflictDialog" class="relocation-dialog conflict-dialog">
+    <div class="relocation-content">
+      <p class="eyebrow">CONFLITTO DI SINCRONIZZAZIONE</p>
+      <h2 id="conflictArticle">—</h2>
+      <p class="helper">L'articolo è stato modificato sul server mentre questo dispositivo era offline.</p>
+      <div class="relocation-route" aria-label="Confronto conflitto">
+        <div><span>Zona sul server</span><strong id="conflictServerZone">—</strong></div>
+        <b aria-hidden="true">≠</b>
+        <div><span>Operazione offline</span><strong id="conflictOfflineZone">—</strong></div>
+      </div>
+      <p id="conflictCounter" class="helper"></p>
+      <div class="conflict-actions">
+        <button id="keepServerButton" class="secondary" type="button">Mantieni zona server</button>
+        <button id="applyOfflineButton" class="primary" type="button">Applica spostamento offline</button>
+      </div>
+      <button id="closeConflictButton" class="link-button" type="button">Risolvi più tardi</button>
+    </div>
+  </dialog>
+
+  <script type="module" src="/assets/js/mapper.js"></script>
 </body>
 </html>

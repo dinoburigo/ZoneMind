@@ -1,14 +1,16 @@
-ZoneMind 0.8.6.1 - Hotfix Assignment Explorer
+ZoneMind 0.9.5.1 Hotfix
 
 Problema corretto:
-- l'endpoint assignments restituisce un oggetto paginato con la proprietà "items";
-- il vecchio caricamento sintetico della dashboard trattava la risposta come un array;
-- questo causava l'errore JavaScript: assignments.forEach is not a function.
+- il Mapper restava su "Connessione..." e "Caricamento..."
+- la funzione openDb() era stata omessa dal file mapper.js della release 0.9.5
+- l'inizializzazione JavaScript si interrompeva prima delle chiamate API
 
 Installazione:
-1. Arrestare Uvicorn.
-2. Copiare public/admin/admin.js nel progetto, sostituendo il file esistente.
-3. Riavviare api/run_api.bat.
-4. Nel browser eseguire Ctrl+F5 per svuotare la cache della pagina.
+1. Sostituire soltanto public/assets/js/mapper.js
+2. Riavviare l'API
+3. Premere Ctrl+F5 nel browser
 
-Non modificare o cancellare api/data/zonemind.db.
+Comportamento atteso:
+- compare il badge API
+- il menu negozi viene popolato
+- IndexedDB apre correttamente meta, workspaces e operations

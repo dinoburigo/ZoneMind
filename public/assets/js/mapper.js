@@ -1,475 +1,114 @@
-import {
-  saveBarcodeArticles,
-  findArticleByEan,
-  getAssignmentByArticle,
-  saveAssignment,
-  getAllAssignments,
-  saveUnresolvedBarcode
-} from "./db.js";
+const DB_NAME='zonemind-offline';
+const DB_VERSION=1;
+let dbPromise=null;
+const state={store:null,layout:null,barcodes:new Map(),assignments:new Map(),scanner:null,scannerRunning:false,scannerPaused:false,processing:false,zone:null,sessionMapped:0,sessionErrors:0,lastEan:null,lastAt:0,sessionLog:[],pendingRelocation:null,pendingConflict:null,online:false,pendingCount:0,conflictCount:0,simulatedOffline:sessionStorage.getItem('zonemind.simulatedOffline')==='1'};
+const $=id=>document.getElementById(id);
+const api=async(url,options={})=>{if(state.simulatedOffline)throw new Error('Modalità offline simulata');const r=await fetch(url,{cache:'no-store',...options});if(!r.ok){let m=`HTTP ${r.status}`,detail=null;try{const j=await r.json();detail=j.detail??null;m=typeof detail==='string'?detail:(detail?.code||m)}catch{}const e=new Error(m);e.status=r.status;e.detail=detail;throw e}return r.status===204?null:r.json()};
 
-const SVG_NS = "http://www.w3.org/2000/svg";
-const DUPLICATE_SCAN_INTERVAL = 1500;
+let deferredInstallPrompt=null;
+document.addEventListener('DOMContentLoaded',init);
+async function init(){bind();registerPwa();await openDb();await updatePendingUi();await checkHealth();await loadStores();}
+function bind(){
+ $('installAppButton').addEventListener('click',installPwa);$('applyUpdateButton').addEventListener('click',applyPwaUpdate);
+ $('loadButton').addEventListener('click',loadWorkspace);$('changeStoreButton').addEventListener('click',resetWorkspace);
+ $('toggleScannerButton').addEventListener('click',toggleScanner);$('closeScannerButton').addEventListener('click',closeScanner);
+ $('refreshButton').addEventListener('click',refreshAssignments);$('syncNowButton').addEventListener('click',syncPendingOperations);$('simulateOfflineButton').addEventListener('click',toggleSimulatedOffline);$('resolveConflictsButton').addEventListener('click',openNextConflict);$('keepServerButton').addEventListener('click',keepServerConflict);$('applyOfflineButton').addEventListener('click',applyOfflineConflict);$('closeConflictButton').addEventListener('click',()=>$('conflictDialog').close());
+ $('manualForm').addEventListener('submit',e=>{e.preventDefault();const v=$('manualEan').value.trim();if(v){processEan(v);$('manualEan').value=''}});
+ $('operatorName').value=localStorage.getItem('zonemind.operator')||'';
+ $('operatorName').addEventListener('change',()=>localStorage.setItem('zonemind.operator',$('operatorName').value.trim()));
+ $('cancelRelocationButton').addEventListener('click',cancelRelocation);$('confirmRelocationButton').addEventListener('click',confirmRelocation);
+ $('relocationDialog').addEventListener('cancel',e=>{e.preventDefault();cancelRelocation()});
+ window.addEventListener('online',async()=>{await checkHealth();await updatePendingUi();if(state.online)await syncPendingOperations(true)});
+ window.addEventListener('offline',()=>{setConnection(false,'Offline');showOffline(true)});
+}
+async function checkHealth(){if(state.simulatedOffline){state.online=false;setConnection(false,'Offline simulato');showOffline(true);updateSimulatedOfflineButton();return false}try{const h=await api('/api/health');state.online=true;setConnection(true,`API ${h.version}`);showOffline(false);updateSimulatedOfflineButton();return true}catch{state.online=false;setConnection(false,'Offline');showOffline(true);updateSimulatedOfflineButton();return false}}
+function setConnection(ok,text){const el=$('connectionBadge');el.textContent=text;el.className=`status ${ok?'status-ok':'status-error'}`}
+function showOffline(show){$('offlineNotice').hidden=!show}
+function updateSimulatedOfflineButton(){const b=$('simulateOfflineButton');if(!b)return;b.textContent=state.simulatedOffline?'Torna online':'Simula offline';b.classList.toggle('active',state.simulatedOffline);b.setAttribute('aria-pressed',String(state.simulatedOffline))}
+async function toggleSimulatedOffline(){state.simulatedOffline=!state.simulatedOffline;sessionStorage.setItem('zonemind.simulatedOffline',state.simulatedOffline?'1':'0');await checkHealth();if(!state.simulatedOffline){await loadStores();await syncPendingOperations()}else{showOffline(true)}await updatePendingUi()}
+async function loadStores(){try{const stores=await api('/api/admin/stores?includeInactive=false');await cachePut('meta','stores',stores);renderStoreOptions(stores)}catch{const stores=await cacheGet('meta','stores')||[];renderStoreOptions(stores);if(!stores.length)$('setupMessage').textContent='Offline: nessun negozio disponibile in cache. Collegati almeno una volta.'}}
+function renderStoreOptions(stores){$('storeSelect').innerHTML='<option value="">Seleziona negozio</option>'+stores.map(s=>`<option value="${esc(s.storeCode)}">${esc(s.storeCode)} - ${esc(s.storeName)}</option>`).join('');const q=new URLSearchParams(location.search).get('store')||localStorage.getItem('zonemind.store');if(q&&stores.some(s=>s.storeCode===q))$('storeSelect').value=q}
+async function loadWorkspace(){const store=$('storeSelect').value;if(!store){$('setupMessage').textContent='Seleziona un negozio.';return}const operator=$('operatorName').value.trim();if(operator)localStorage.setItem('zonemind.operator',operator);setBusy(true);let fromCache=false;try{let layout,barcodes,rows;if(await checkHealth()){[layout,barcodes]=await Promise.all([api(`/api/stores/${encodeURIComponent(store)}/layouts/active`),api(`/api/stores/${encodeURIComponent(store)}/barcodes`)]);validateLayout(layout);rows=await api(`/api/stores/${encodeURIComponent(store)}/layouts/${encodeURIComponent(layout.layoutId)}/assignments`);await cacheWorkspace(store,layout,barcodes,rows)}else{const cached=await readCachedWorkspace(store);if(!cached)throw new Error('Nessun layout offline disponibile per questo negozio');({layout,barcodes,assignments:rows}=cached);fromCache=true}state.store=store;state.layout=layout;state.barcodes=new Map(barcodes.map(x=>[String(x.ean),x]));state.assignments=new Map(rows.map(r=>[r.article_code,r]));localStorage.setItem('zonemind.store',store);renderWorkspace();$('setupPanel').hidden=true;$('workspace').hidden=false;showOffline(!state.online);await updatePendingUi()}catch(e){$('setupMessage').textContent=`Impossibile avviare: ${e.message}`;toast(e.message)}finally{setBusy(false)}}
+function validateLayout(l){if(!l?.layoutId||!l?.storeCode||!Array.isArray(l.zones))throw new Error('Layout attivo non valido')}
+async function cacheWorkspace(store,layout,barcodes,assignments){await Promise.all([cachePut('workspaces',store,{store,layout,barcodes,assignments,cachedAt:new Date().toISOString()}),cachePut('meta','lastCache',new Date().toISOString())])}
+async function readCachedWorkspace(store){return cacheGet('workspaces',store)}
+function renderWorkspace(){$('layoutTitle').textContent=state.layout.layoutCode||state.layout.layoutId;$('storeTitle').textContent=`${state.store} · ${state.barcodes.size} barcode disponibili`;renderZones();renderMap();renderRecent();updateSummary()}
+function renderZones(){const counts=zoneCounts();$('zoneList').innerHTML=state.layout.zones.filter(z=>z.monitoringEnabled!==false).map(z=>`<button class="zone-button" data-zone="${esc(z.zoneId)}">${esc(z.zoneCode)}<small>${counts.get(z.zoneId)||0} articoli</small></button>`).join('');document.querySelectorAll('[data-zone]').forEach(b=>b.addEventListener('click',()=>selectZone(findZone(b.dataset.zone))))}
+function renderMap(){const image=state.layout.image||{};const src=typeof image==='string'?image:(image.dataUrl||image.url||image.src||'');const stage=$('mapStage'),overlay=$('zoneOverlay');if(!src){stage.hidden=true;return}const width=Number(image.width||state.layout.imageWidth||0),height=Number(image.height||state.layout.imageHeight||0);$('floorplanImage').src=src;stage.hidden=false;overlay.innerHTML='';if(width>0&&height>0)overlay.setAttribute('viewBox',`0 0 ${width} ${height}`);else overlay.removeAttribute('viewBox');const counts=zoneCounts();for(const z of state.layout.zones.filter(z=>z.monitoringEnabled!==false)){const r=normalizeGeometry(z.geometry||{},width,height);if(!r)continue;const group=document.createElementNS('http://www.w3.org/2000/svg','g');group.classList.add('map-zone');group.setAttribute('role','button');group.setAttribute('tabindex','0');group.setAttribute('aria-label',`Seleziona zona ${z.zoneCode}`);const rect=document.createElementNS('http://www.w3.org/2000/svg','rect');rect.setAttribute('x',r.x);rect.setAttribute('y',r.y);rect.setAttribute('width',r.w);rect.setAttribute('height',r.h);rect.classList.add('map-zone-shape');if((counts.get(z.zoneId)||0)>0)rect.classList.add('has-articles');const text=document.createElementNS('http://www.w3.org/2000/svg','text');text.setAttribute('x',r.x+r.w/2);text.setAttribute('y',r.y+r.h/2);text.classList.add('map-zone-label');text.textContent=`${z.zoneCode} · ${counts.get(z.zoneId)||0}`;const activate=e=>{e.preventDefault();selectZone(z)};group.addEventListener('click',activate);group.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' ')activate(e)});group.append(rect,text);overlay.appendChild(group)}}
+function normalizeGeometry(g,imageWidth,imageHeight){let x=Number(g.x??g.left),y=Number(g.y??g.top),w=Number(g.width??g.w),h=Number(g.height??g.h);if([x,y,w,h].some(v=>!Number.isFinite(v)))return null;if(Math.max(x,y,w,h)<=1&&imageWidth>0&&imageHeight>0){x*=imageWidth;y*=imageHeight;w*=imageWidth;h*=imageHeight}return{x,y,w,h}}
+function findZone(id){return state.layout.zones.find(z=>String(z.zoneId)===String(id))}
+async function selectZone(z){state.zone=z;state.sessionMapped=0;state.sessionErrors=0;state.sessionLog=[];state.scannerPaused=false;$('selectedZoneCode').textContent=z.zoneCode;$('lastScanArticle').textContent='—';$('lastScanDescription').textContent='Nessuna scansione nella sessione';$('toggleScannerButton').textContent='Pausa fotocamera';renderSessionLog();updateSession();$('scannerPanel').hidden=false;document.body.style.overflow='hidden';feedback(`Inquadra il barcode per ${z.zoneCode}`,'');await startScanner()}
+async function startScanner(){if(state.scannerRunning||!window.Html5Qrcode)return;if(!window.isSecureContext&&location.hostname!=='localhost'){feedback('La fotocamera richiede HTTPS. Usa il campo EAN manuale.','warning');return}try{state.scanner=new Html5Qrcode('reader');await state.scanner.start({facingMode:'environment'},{fps:12,qrbox:(w,h)=>({width:Math.min(Math.floor(w*.82),440),height:Math.min(Math.floor(h*.28),140)}),formatsToSupport:[Html5QrcodeSupportedFormats.EAN_13,Html5QrcodeSupportedFormats.EAN_8,Html5QrcodeSupportedFormats.CODE_128]},processEan,()=>{});state.scannerRunning=true}catch{feedback('Fotocamera non disponibile. Puoi usare il campo EAN manuale.','warning')}}
+async function stopScanner(){if(!state.scanner)return;try{if(state.scannerRunning)await state.scanner.stop();state.scanner.clear()}catch{}state.scanner=null;state.scannerRunning=false;state.scannerPaused=false}
+async function toggleScanner(){if(!state.zone)return;if(state.scannerRunning){await stopScanner();state.scannerPaused=true;$('toggleScannerButton').textContent='Riprendi fotocamera';feedback('Fotocamera in pausa. Puoi usare l’EAN manuale.','warning')}else{state.scannerPaused=false;$('toggleScannerButton').textContent='Pausa fotocamera';await startScanner()}}
+async function closeScanner(){await stopScanner();state.zone=null;state.lastEan=null;$('scannerPanel').hidden=true;document.body.style.overflow='';if(state.online)await refreshAssignments();renderZones();renderRecent();updateSummary()}
+async function processEan(raw){const ean=String(raw).trim();if(!ean||state.processing||!state.zone)return;const now=Date.now();if(ean===state.lastEan&&now-state.lastAt<1600)return;state.lastEan=ean;state.lastAt=now;state.processing=true;try{const article=state.barcodes.get(ean);if(!article){state.sessionErrors++;updateSession();setLastScan(ean,'EAN non riconosciuto','warning');addSessionLog('warning',ean,'EAN non presente nel catalogo');feedback(`EAN ${ean} non presente nel catalogo`,'warning');vibrate([80,50,80]);return}const existing=state.assignments.get(article.articleCode);if(existing&&existing.zone_id===state.zone.zoneId){setLastScan(article.articleCode,article.description||'Già associato alla zona','neutral');addSessionLog('neutral',article.articleCode,`Già presente in ${state.zone.zoneCode}`);feedback(`${article.articleCode} già presente in ${state.zone.zoneCode}`,'');return}if(existing&&existing.zone_id!==state.zone.zoneId){openRelocation(article,ean,existing);return}const nowIso=new Date().toISOString();const payload={articleCode:article.articleCode,scannedEan:ean,storeCode:state.store,layoutId:state.layout.layoutId,zoneId:state.zone.zoneId,zoneCode:state.zone.zoneCode,updatedAt:nowIso,createdBy:localStorage.getItem('zonemind.operator')||null};let queued=false;try{if(!state.online)throw new TypeError('offline');await api('/api/assignments',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})}catch(e){if(!isNetworkError(e))throw e;await enqueueOperation('CREATE_ASSIGNMENT',payload);queued=true}state.assignments.set(article.articleCode,{article_code:article.articleCode,zone_id:state.zone.zoneId,zone_code:state.zone.zoneCode,scanned_ean:ean,updated_at:nowIso,_pending:queued});await persistLocalAssignments();state.sessionMapped++;updateSession();setLastScan(article.articleCode,article.description||`EAN ${ean}`,queued?'warning':'success');addSessionLog(queued?'warning':'success',article.articleCode,queued?`Salvato offline per ${state.zone.zoneCode}`:`Associato a ${state.zone.zoneCode}`);feedback(queued?`${article.articleCode} salvato offline`:`${article.articleCode} associato a ${state.zone.zoneCode}`,queued?'warning':'success');vibrate(80);renderZones();renderRecent();updateSummary();await updatePendingUi()}catch(e){state.sessionErrors++;updateSession();setLastScan(ean,'Errore di salvataggio','error');addSessionLog('error',ean,`Errore: ${e.message}`);feedback(`Errore salvataggio: ${e.message}`,'error')}finally{state.processing=false}}
+function openRelocation(article,ean,existing){state.pendingRelocation={article,ean,existing,toZone:{...state.zone}};$('relocationArticle').textContent=article.articleCode;$('relocationDescription').textContent=article.description||`EAN ${ean}`;$('relocationFrom').textContent=existing.zone_code;$('relocationTo').textContent=state.zone.zoneCode;feedback(`${article.articleCode} è già associato a ${existing.zone_code}`,'warning');setLastScan(article.articleCode,`Già associato a ${existing.zone_code}`,'warning');vibrate([100,60,100]);$('relocationDialog').showModal()}
+function cancelRelocation(){const pending=state.pendingRelocation;if($('relocationDialog').open)$('relocationDialog').close();state.pendingRelocation=null;if(pending){addSessionLog('warning',pending.article.articleCode,`Spostamento da ${pending.existing.zone_code} annullato`);feedback('Spostamento annullato','warning')}}
+async function confirmRelocation(){const pending=state.pendingRelocation;if(!pending||state.processing)return;const button=$('confirmRelocationButton');button.disabled=true;button.textContent='Spostamento…';state.processing=true;try{const movedAt=new Date().toISOString();const payload={storeCode:state.store,layoutId:state.layout.layoutId,articleCode:pending.article.articleCode,scannedEan:pending.ean,fromZoneId:pending.existing.zone_id,fromZoneCode:pending.existing.zone_code,toZoneId:pending.toZone.zoneId,toZoneCode:pending.toZone.zoneCode,movedAt,operator:localStorage.getItem('zonemind.operator')||null};let queued=false;try{if(!state.online)throw new TypeError('offline');await api('/api/mapper/move-assignment',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})}catch(e){if(!isNetworkError(e))throw e;await enqueueOperation('MOVE_ASSIGNMENT',payload);queued=true}state.assignments.set(pending.article.articleCode,{...pending.existing,article_code:pending.article.articleCode,zone_id:pending.toZone.zoneId,zone_code:pending.toZone.zoneCode,scanned_ean:pending.ean,updated_at:movedAt,_pending:queued});await persistLocalAssignments();state.sessionMapped++;updateSession();setLastScan(pending.article.articleCode,pending.article.description||`EAN ${pending.ean}`,queued?'warning':'success');addSessionLog(queued?'warning':'success',pending.article.articleCode,queued?`Spostamento offline ${pending.existing.zone_code} → ${pending.toZone.zoneCode}`:`Spostato ${pending.existing.zone_code} → ${pending.toZone.zoneCode}`);feedback(queued?'Spostamento salvato offline':`${pending.article.articleCode} spostato ${pending.existing.zone_code} → ${pending.toZone.zoneCode}`,queued?'warning':'success');highlightMove(pending.existing.zone_id,pending.toZone.zoneId);vibrate([70,40,70]);$('relocationDialog').close();state.pendingRelocation=null;await updatePendingUi()}catch(e){state.sessionErrors++;updateSession();setLastScan(pending.article.articleCode,'Spostamento non riuscito','error');addSessionLog('error',pending.article.articleCode,`Errore spostamento: ${e.message}`);feedback(`Errore spostamento: ${e.message}`,'error');if(state.online)await refreshAssignments()}finally{state.processing=false;button.disabled=false;button.textContent='Sposta articolo'}}
+function isNetworkError(e){return !navigator.onLine||e instanceof TypeError||/fetch|network|offline/i.test(e.message||'')}
+function highlightMove(fromZoneId,toZoneId){renderMap();for(const group of document.querySelectorAll('.map-zone')){const label=group.getAttribute('aria-label')||'';const zone=state.layout.zones.find(z=>label===`Seleziona zona ${z.zoneCode}`);const shape=group.querySelector('.map-zone-shape');if(zone&&String(zone.zoneId)===String(fromZoneId))shape?.classList.add('zone-moved-from');if(zone&&String(zone.zoneId)===String(toZoneId))shape?.classList.add('zone-moved-to')}setTimeout(()=>renderMap(),1200)}
+async function refreshAssignments(){if(!state.store||!state.layout)return;if(!state.online){toast('Offline: vengono mostrati i dati locali');return}const rows=await api(`/api/stores/${encodeURIComponent(state.store)}/layouts/${encodeURIComponent(state.layout.layoutId)}/assignments`);state.assignments=new Map(rows.map(r=>[r.article_code,r]));await persistLocalAssignments();if(!$('workspace').hidden){renderZones();renderRecent();updateSummary()}}
+async function persistLocalAssignments(){if(!state.store||!state.layout)return;const current=await readCachedWorkspace(state.store)||{store:state.store,layout:state.layout,barcodes:[...state.barcodes.values()]};current.layout=state.layout;current.barcodes=[...state.barcodes.values()];current.assignments=[...state.assignments.values()];current.cachedAt=new Date().toISOString();await cachePut('workspaces',state.store,current)}
+function zoneCounts(){const m=new Map();for(const a of state.assignments.values())m.set(a.zone_id,(m.get(a.zone_id)||0)+1);return m}
+function updateSummary(){const zones=new Set([...state.assignments.values()].map(a=>a.zone_id));$('mappedCount').textContent=state.assignments.size;$('usedZoneCount').textContent=zones.size;const latest=[...state.assignments.values()].sort((a,b)=>String(b.updated_at).localeCompare(String(a.updated_at)))[0];$('lastActivity').textContent=latest?formatDate(latest.updated_at):'—'}
+function renderRecent(){const rows=[...state.assignments.values()].sort((a,b)=>String(b.updated_at).localeCompare(String(a.updated_at))).slice(0,12);$('recentList').innerHTML=rows.length?rows.map(a=>`<div class="recent-item ${a._pending?'pending-local':''}"><b>${esc(a.zone_code)}</b><div><strong>${esc(a.article_code)}</strong><br><small>EAN ${esc(a.scanned_ean||'—')}${a._pending?' · in coda':''}</small></div><time>${formatDate(a.updated_at)}</time></div>`).join(''):'<p class="empty">Nessuna associazione.</p>'}
+function resetWorkspace(){$('workspace').hidden=true;$('setupPanel').hidden=false;$('setupMessage').textContent='Seleziona il negozio e carica il layout attivo.'}
+function setLastScan(article,description,type){$('lastScanArticle').textContent=article||'—';$('lastScanDescription').textContent=description||'';const box=$('lastScanArticle').closest('.last-scan');box.className=`last-scan ${type||''}`}
+function addSessionLog(type,article,message){state.sessionLog.unshift({type,article,message,time:new Date()});state.sessionLog=state.sessionLog.slice(0,8);renderSessionLog()}
+function renderSessionLog(){const el=$('sessionLog');if(!state.sessionLog.length){el.innerHTML='<p>Nessuna attività nella sessione.</p>';return}el.innerHTML=state.sessionLog.map(x=>`<div class="session-log-item ${x.type}"><time>${x.time.toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}</time><strong>${esc(x.article)}</strong><span>${esc(x.message)}</span></div>`).join('')}
+function feedback(text,type){const el=$('scanFeedback');el.textContent=text;el.className=`scan-feedback ${type||''}`;if(type)setTimeout(()=>{if(el.textContent===text)feedback('Inquadra il barcode','')},2200)}
+function updateSession(){$('sessionMapped').textContent=state.sessionMapped;$('sessionErrors').textContent=state.sessionErrors}
+function setBusy(v){$('loadButton').disabled=v;$('loadButton').textContent=v?'Caricamento…':'Carica layout'}
+function toast(t){const el=$('toast');el.textContent=t;el.hidden=false;setTimeout(()=>el.hidden=true,3000)}
+function vibrate(p){if(navigator.vibrate)navigator.vibrate(p)}
+function formatDate(v){if(!v)return'—';const d=new Date(v);return Number.isNaN(d.getTime())?v:d.toLocaleString('it-IT',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}
+function esc(v){return String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
+function operationId(){return crypto.randomUUID?crypto.randomUUID():`${Date.now()}-${Math.random().toString(16).slice(2)}`}
+async function enqueueOperation(type,payload){await dbAdd('operations',{operationId:operationId(),type,payload,status:'PENDING',createdAt:new Date().toISOString(),attempts:0});await updatePendingUi()}
+async function updatePendingUi(){const ops=await dbGetAll('operations');state.pendingCount=ops.filter(x=>x.status==='PENDING').length;state.conflictCount=ops.filter(x=>x.status==='CONFLICT').length;const total=state.pendingCount+state.conflictCount;$('syncBadge').textContent=state.conflictCount?`${state.conflictCount} conflitt${state.conflictCount===1?'o':'i'}`:`${state.pendingCount} in coda`;$('syncBadge').className=`status status-sync ${state.conflictCount?'has-conflicts':(state.pendingCount?'has-pending':'')}`;$('resolveConflictsButton').hidden=!state.conflictCount;if(state.conflictCount){$('syncStatusText').textContent=`${state.conflictCount} conflitt${state.conflictCount===1?'o da risolvere':'i da risolvere'}`;$('syncStatusDetail').textContent='La sincronizzazione è sospesa finché non scegli quale zona mantenere.'}else if(state.pendingCount){$('syncStatusText').textContent=`${state.pendingCount} operazion${state.pendingCount===1?'e':'i'} da sincronizzare`;$('syncStatusDetail').textContent='Le operazioni restano memorizzate sul dispositivo e vengono inviate in ordine cronologico.'}else{$('syncStatusText').textContent='Tutto sincronizzato';$('syncStatusDetail').textContent='Nessuna operazione locale in attesa.'}$('syncNowButton').disabled=!state.pendingCount||!state.online;return total}
+async function syncPendingOperations(silent=false){if(!state.online){if(!silent)toast('Connessione non disponibile');return}const button=$('syncNowButton');button.disabled=true;button.textContent='Sincronizzazione…';try{const ops=(await dbGetAll('operations')).filter(x=>x.status==='PENDING').sort((a,b)=>a.createdAt.localeCompare(b.createdAt));let done=0,conflicts=0;for(const op of ops){try{await api('/api/mapper/sync-operation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({operationId:op.operationId,type:op.type,payload:op.payload,force:false})});await dbDelete('operations',op.operationId);done++}catch(e){op.attempts=(op.attempts||0)+1;op.lastError=e.message;if(e.status===409&&e.detail&&typeof e.detail==='object'){op.status='CONFLICT';op.conflict=e.detail;await dbPut('operations',op);conflicts++;continue}await dbPut('operations',op);break}}await updatePendingUi();if(done)await refreshAssignments();if(conflicts){toast(`${conflicts} conflitt${conflicts===1?'o richiede':'i richiedono'} una scelta`);openNextConflict()}else if(done&&!silent)toast(`${done} operazion${done===1?'e sincronizzata':'i sincronizzate'}`);else if(!done&&!silent)toast('Nessuna operazione sincronizzata')}finally{button.textContent='Sincronizza ora';await updatePendingUi()}}
+async function getConflicts(){return (await dbGetAll('operations')).filter(x=>x.status==='CONFLICT').sort((a,b)=>a.createdAt.localeCompare(b.createdAt))}
+async function openNextConflict(){const conflicts=await getConflicts();if(!conflicts.length){state.pendingConflict=null;if($('conflictDialog').open)$('conflictDialog').close();await updatePendingUi();return}const op=conflicts[0],c=op.conflict||{};state.pendingConflict=op;$('conflictArticle').textContent=c.articleCode||op.payload.articleCode||'—';$('conflictServerZone').textContent=c.serverZoneCode||'Nessuna zona';$('conflictOfflineZone').textContent=c.offlineZoneCode||op.payload.toZoneCode||op.payload.zoneCode||'—';$('conflictCounter').textContent=`Conflitto 1 di ${conflicts.length}`;if(!$('conflictDialog').open)$('conflictDialog').showModal()}
+async function keepServerConflict(){const op=state.pendingConflict;if(!op)return;await dbDelete('operations',op.operationId);state.pendingConflict=null;await refreshAssignments();await persistLocalAssignments();toast('Mantenuta la zona registrata sul server');await updatePendingUi();await openNextConflict()}
+async function applyOfflineConflict(){const op=state.pendingConflict;if(!op||!state.online){toast('Connessione non disponibile');return}const button=$('applyOfflineButton');button.disabled=true;button.textContent='Applicazione…';try{await api('/api/mapper/sync-operation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({operationId:op.operationId,type:op.type,payload:op.payload,force:true})});await dbDelete('operations',op.operationId);state.pendingConflict=null;await refreshAssignments();toast('Applicata la zona scelta durante il lavoro offline');await updatePendingUi();await openNextConflict()}catch(e){toast(`Conflitto non risolto: ${e.message}`)}finally{button.disabled=false;button.textContent='Applica spostamento offline'}}
 
-let layout = null;
-let selectedZone = null;
-let scanner = null;
-let scannerRunning = false;
-let barcodeProcessing = false;
-let unresolvedCount = 0;
-let zoneArticleCounts = new Map();
-let lastScannedEan = null;
-let lastScanTime = 0;
-
-document.addEventListener("DOMContentLoaded", initialize);
-
-async function initialize() {
-  try {
-    await loadBarcodeData();
-    await loadLayout();
-    await refreshZoneCounts();
-    renderFloorplan();
-    renderZoneSummary();
-    updateSelectedZonePanel();
-
-    document
-      .getElementById("changeZoneButton")
-      .addEventListener("click", finishReading);
-  } catch (error) {
-    showMessage(`Errore inizializzazione: ${error.message}`, "error");
-    console.error(error);
-  }
+function openDb(){
+ if(dbPromise)return dbPromise;
+ dbPromise=new Promise((resolve,reject)=>{
+  const req=indexedDB.open(DB_NAME,DB_VERSION);
+  req.onupgradeneeded=()=>{
+   const db=req.result;
+   if(!db.objectStoreNames.contains('meta'))db.createObjectStore('meta');
+   if(!db.objectStoreNames.contains('workspaces'))db.createObjectStore('workspaces');
+   if(!db.objectStoreNames.contains('operations'))db.createObjectStore('operations',{keyPath:'operationId'});
+  };
+  req.onsuccess=()=>resolve(req.result);
+  req.onerror=()=>{dbPromise=null;reject(req.error)};
+  req.onblocked=()=>{dbPromise=null;reject(new Error('Database locale bloccato da un’altra scheda'))};
+ });
+ return dbPromise;
 }
 
-async function loadBarcodeData() {
-  const response = await fetch("./data/barcode-articles-demo.json");
-  if (!response.ok) {
-    throw new Error("Archivio EAN non disponibile");
-  }
-  await saveBarcodeArticles(await response.json());
+async function cachePut(store,key,value){const db=await openDb();return new Promise((resolve,reject)=>{const tx=db.transaction(store,'readwrite');tx.objectStore(store).put(value,key);tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error)})}
+async function cacheGet(store,key){const db=await openDb();return new Promise((resolve,reject)=>{const req=db.transaction(store,'readonly').objectStore(store).get(key);req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error)})}
+async function dbAdd(store,value){const db=await openDb();return new Promise((resolve,reject)=>{const tx=db.transaction(store,'readwrite');tx.objectStore(store).add(value);tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error)})}
+async function dbPut(store,value){const db=await openDb();return new Promise((resolve,reject)=>{const tx=db.transaction(store,'readwrite');tx.objectStore(store).put(value);tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error)})}
+async function dbDelete(store,key){const db=await openDb();return new Promise((resolve,reject)=>{const tx=db.transaction(store,'readwrite');tx.objectStore(store).delete(key);tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error)})}
+async function dbGetAll(store){const db=await openDb();return new Promise((resolve,reject)=>{const req=db.transaction(store,'readonly').objectStore(store).getAll();req.onsuccess=()=>resolve(req.result||[]);req.onerror=()=>reject(req.error)})}
+
+
+// PWA lifecycle — Sprint 0.9.6
+function registerPwa(){
+ if(!('serviceWorker' in navigator))return;
+ window.addEventListener('beforeinstallprompt',event=>{event.preventDefault();deferredInstallPrompt=event;$('installAppButton').hidden=false});
+ window.addEventListener('appinstalled',()=>{deferredInstallPrompt=null;$('installAppButton').hidden=true;toast('ZoneMind installato sul dispositivo')});
+ navigator.serviceWorker.register('/service-worker.js',{scope:'/'}).then(registration=>{
+   if(registration.waiting)showPwaUpdate(registration.waiting);
+   registration.addEventListener('updatefound',()=>{const worker=registration.installing;if(!worker)return;worker.addEventListener('statechange',()=>{if(worker.state==='installed'&&navigator.serviceWorker.controller)showPwaUpdate(worker)})});
+ }).catch(error=>console.warn('Service worker non registrato:',error));
+ navigator.serviceWorker.addEventListener('controllerchange',()=>window.location.reload());
 }
-
-async function loadLayout() {
-  const response = await fetch("./data/layout-current.json", {
-    cache: "no-store"
-  });
-
-  if (!response.ok) {
-    throw new Error(`Layout non disponibile: HTTP ${response.status}`);
-  }
-
-  const loadedLayout = await response.json();
-  validateLayout(loadedLayout);
-  layout = loadedLayout;
-
-  document.getElementById("storeInfo").textContent =
-    `${layout.storeCode} - ${layout.layoutCode}`;
-}
-
-function validateLayout(loadedLayout) {
-  if (!loadedLayout || typeof loadedLayout !== "object") {
-    throw new Error("Struttura layout non valida");
-  }
-  if (!loadedLayout.storeCode) {
-    throw new Error("Store non presente nel layout");
-  }
-  if (!loadedLayout.layoutId) {
-    throw new Error("Layout ID non presente");
-  }
-  if (!loadedLayout.image?.dataUrl) {
-    throw new Error("Immagine della planimetria non presente");
-  }
-  if (!Array.isArray(loadedLayout.zones)) {
-    throw new Error("Elenco zone non presente");
-  }
-
-  const invalidZone = loadedLayout.zones.find(zone =>
-    !zone.zoneId || !zone.zoneCode || !zone.geometry
-  );
-
-  if (invalidZone) {
-    throw new Error("Una o più zone non rispettano lo schema previsto");
-  }
-}
-
-function getMonitoredZones() {
-  return layout.zones.filter(zone => zone.monitoringEnabled !== false);
-}
-
-function renderFloorplan() {
-  const image = document.getElementById("floorplanImage");
-  const layer = document.getElementById("zoneLayer");
-
-  image.src = layout.image.dataUrl;
-  layer.setAttribute(
-    "viewBox",
-    `0 0 ${layout.image.width} ${layout.image.height}`
-  );
-  layer.innerHTML = "";
-
-  getMonitoredZones().forEach(zone => {
-    const group = document.createElementNS(SVG_NS, "g");
-    group.classList.add("map-zone");
-    group.setAttribute("role", "button");
-    group.setAttribute("tabindex", "0");
-
-    const rect = document.createElementNS(SVG_NS, "rect");
-    rect.setAttribute("x", zone.geometry.x);
-    rect.setAttribute("y", zone.geometry.y);
-    rect.setAttribute("width", zone.geometry.width);
-    rect.setAttribute("height", zone.geometry.height);
-    rect.classList.add("map-zone-shape");
-
-    if (getZoneCount(zone.zoneId) > 0) {
-      rect.classList.add("has-articles");
-    }
-    if (selectedZone?.zoneId === zone.zoneId) {
-      rect.classList.add("selected");
-    }
-
-    const label = document.createElementNS(SVG_NS, "text");
-    label.setAttribute("x", zone.geometry.x + zone.geometry.width / 2);
-    label.setAttribute("y", zone.geometry.y + zone.geometry.height / 2);
-    label.classList.add("map-zone-label");
-    label.textContent = `${zone.zoneCode} · ${getZoneCount(zone.zoneId)}`;
-
-    const activate = async event => {
-      event.preventDefault();
-      await openScannerForZone(zone);
-    };
-
-    group.addEventListener("click", activate);
-    group.addEventListener("keydown", async event => {
-      if (event.key === "Enter" || event.key === " ") {
-        await activate(event);
-      }
-    });
-
-    group.appendChild(rect);
-    group.appendChild(label);
-    layer.appendChild(group);
-  });
-}
-
-function renderZoneSummary() {
-  const container = document.getElementById("zoneSummaryList");
-  container.innerHTML = "";
-
-  const zones = getMonitoredZones();
-  if (zones.length === 0) {
-    container.textContent = "Nessuna zona monitorata nel layout.";
-    return;
-  }
-
-  zones.forEach(zone => {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "zone-summary-button";
-
-    if (selectedZone?.zoneId === zone.zoneId) {
-      button.classList.add("selected");
-    }
-
-    const count = getZoneCount(zone.zoneId);
-    button.innerHTML = `
-      <strong>${zone.zoneCode}</strong>
-      <span class="zone-summary-count">
-        <strong>${count}</strong>
-        <span>${count === 1 ? "articolo" : "articoli"}</span>
-      </span>
-    `;
-
-    button.addEventListener("click", () => {
-      selectedZone = zone;
-      renderFloorplan();
-      renderZoneSummary();
-      updateSelectedZonePanel();
-    });
-
-    container.appendChild(button);
-  });
-}
-
-function updateSelectedZonePanel() {
-  const section = document.getElementById("selectedZoneSection");
-
-  if (!selectedZone) {
-    section.hidden = true;
-    return;
-  }
-
-  section.hidden = false;
-  document.getElementById("selectedZoneCode").textContent =
-    selectedZone.zoneCode;
-  document.getElementById("selectedZoneArticleCount").textContent =
-    getZoneCount(selectedZone.zoneId);
-}
-
-async function openScannerForZone(zone) {
-  selectedZone = zone;
-  unresolvedCount = 0;
-
-  renderFloorplan();
-  renderZoneSummary();
-  updateSelectedZonePanel();
-  updateScannerSummary();
-
-  document.getElementById("scannerPanel").hidden = false;
-  document.body.classList.add("scanner-active");
-  document.getElementById("scannerTitle").textContent = zone.zoneCode;
-
-  showMessage(`Scanner attivo sulla zona ${zone.zoneCode}`);
-  await startScanner();
-}
-
-async function startScanner() {
-  if (!selectedZone || scannerRunning) return;
-
-  scanner = new Html5Qrcode("reader");
-
-  try {
-    await scanner.start(
-      { facingMode: "environment" },
-      {
-        fps: 12,
-        qrbox(viewfinderWidth, viewfinderHeight) {
-          return {
-            width: Math.min(Math.floor(viewfinderWidth * 0.82), 420),
-            height: Math.min(Math.floor(viewfinderHeight * 0.28), 150)
-          };
-        },
-        aspectRatio: 1.7778,
-        formatsToSupport: [
-          Html5QrcodeSupportedFormats.EAN_13,
-          Html5QrcodeSupportedFormats.EAN_8,
-          Html5QrcodeSupportedFormats.CODE_128
-        ]
-      },
-      handleBarcode,
-      () => {}
-    );
-
-    scannerRunning = true;
-  } catch (error) {
-    showMessage(`Impossibile avviare la fotocamera: ${error}`, "error");
-    console.error(error);
-  }
-}
-
-async function handleBarcode(ean) {
-  if (!selectedZone || barcodeProcessing || isRepeatedCameraReading(ean)) {
-    return;
-  }
-
-  barcodeProcessing = true;
-
-  try {
-    const barcodeRecord = await findArticleByEan(ean);
-
-    if (!barcodeRecord) {
-      await registerUnresolvedBarcode(ean);
-      unresolvedCount += 1;
-      updateScannerSummary();
-      showTemporaryMessage(
-        `EAN ${ean} non riconosciuto. Registrato per verifica.`,
-        "warning"
-      );
-      return;
-    }
-
-    const existingAssignment =
-      await getAssignmentByArticle(barcodeRecord.articleCode);
-
-    if (
-      existingAssignment &&
-      existingAssignment.zoneId === selectedZone.zoneId
-    ) {
-      showTemporaryMessage(
-        `${barcodeRecord.articleCode} è già presente in ${selectedZone.zoneCode}`
-      );
-      return;
-    }
-
-    if (
-      existingAssignment &&
-      existingAssignment.zoneId !== selectedZone.zoneId
-    ) {
-      await handleZoneConflict(barcodeRecord, existingAssignment);
-      return;
-    }
-
-    await createAssignment(barcodeRecord);
-    await refreshInterfaceAfterAssignment();
-
-    showTemporaryMessage(
-      `${barcodeRecord.articleCode} associato a ${selectedZone.zoneCode}`,
-      "success"
-    );
-  } catch (error) {
-    showMessage(`Errore durante la scansione: ${error.message}`, "error");
-    console.error(error);
-  } finally {
-    barcodeProcessing = false;
-  }
-}
-
-function isRepeatedCameraReading(ean) {
-  const currentTime = Date.now();
-
-  if (
-    ean === lastScannedEan &&
-    currentTime - lastScanTime < DUPLICATE_SCAN_INTERVAL
-  ) {
-    return true;
-  }
-
-  lastScannedEan = ean;
-  lastScanTime = currentTime;
-  return false;
-}
-
-async function handleZoneConflict(barcodeRecord, existingAssignment) {
-  const moveConfirmed = confirm(
-    `L'articolo ${barcodeRecord.articleCode} è già associato ` +
-    `alla zona ${existingAssignment.zoneCode}.\n\n` +
-    `Vuoi spostarlo nella zona ${selectedZone.zoneCode}?`
-  );
-
-  if (!moveConfirmed) {
-    showTemporaryMessage(
-      `Articolo mantenuto nella zona ${existingAssignment.zoneCode}`,
-      "warning"
-    );
-    return;
-  }
-
-  await createAssignment(barcodeRecord);
-  await refreshInterfaceAfterAssignment();
-
-  showTemporaryMessage(
-    `${barcodeRecord.articleCode} spostato da ` +
-    `${existingAssignment.zoneCode} a ${selectedZone.zoneCode}`,
-    "success"
-  );
-}
-
-async function createAssignment(barcodeRecord) {
-  await saveAssignment({
-    articleCode: barcodeRecord.articleCode,
-    scannedEan: barcodeRecord.ean,
-    storeCode: layout.storeCode,
-    layoutId: layout.layoutId,
-    zoneId: selectedZone.zoneId,
-    zoneCode: selectedZone.zoneCode,
-    createdAt: new Date().toISOString(),
-    syncStatus: "PENDING"
-  });
-}
-
-async function registerUnresolvedBarcode(ean) {
-  const unresolvedKey = [layout.layoutId, selectedZone.zoneId, ean].join("|");
-
-  await saveUnresolvedBarcode({
-    unresolvedKey,
-    ean,
-    storeCode: layout.storeCode,
-    layoutId: layout.layoutId,
-    zoneId: selectedZone.zoneId,
-    zoneCode: selectedZone.zoneCode,
-    scannedAt: new Date().toISOString(),
-    reason: "EAN_NOT_FOUND",
-    status: "PENDING"
-  });
-}
-
-async function refreshInterfaceAfterAssignment() {
-  await refreshZoneCounts();
-  renderFloorplan();
-  renderZoneSummary();
-  updateSelectedZonePanel();
-  updateScannerSummary();
-}
-
-async function refreshZoneCounts() {
-  const assignments = await getAllAssignments();
-  const articleSets = new Map();
-
-  assignments
-    .filter(assignment => assignment.layoutId === layout.layoutId)
-    .forEach(assignment => {
-      if (!articleSets.has(assignment.zoneId)) {
-        articleSets.set(assignment.zoneId, new Set());
-      }
-      articleSets.get(assignment.zoneId).add(assignment.articleCode);
-    });
-
-  zoneArticleCounts = new Map(
-    [...articleSets.entries()].map(([zoneId, articles]) => [
-      zoneId,
-      articles.size
-    ])
-  );
-}
-
-function getZoneCount(zoneId) {
-  return zoneArticleCounts.get(zoneId) || 0;
-}
-
-async function finishReading() {
-  await stopScanner();
-  lastScannedEan = null;
-  lastScanTime = 0;
-
-  document.getElementById("scannerPanel").hidden = true;
-  document.body.classList.remove("scanner-active");
-
-  await refreshZoneCounts();
-  renderFloorplan();
-  renderZoneSummary();
-  updateSelectedZonePanel();
-
-  document.getElementById("selectedZoneSection").scrollIntoView({
-    behavior: "smooth",
-    block: "start"
-  });
-}
-
-async function stopScanner() {
-  if (!scanner) {
-    scannerRunning = false;
-    return;
-  }
-
-  try {
-    if (scannerRunning) {
-      await scanner.stop();
-    }
-    scanner.clear();
-  } catch (error) {
-    console.error("Errore arresto scanner:", error);
-  } finally {
-    scannerRunning = false;
-    scanner = null;
-  }
-}
-
-function updateScannerSummary() {
-  document.getElementById("associatedCount").textContent =
-    selectedZone ? getZoneCount(selectedZone.zoneId) : 0;
-  document.getElementById("unresolvedCount").textContent = unresolvedCount;
-}
-
-function showMessage(text, className = "") {
-  const element = document.getElementById("message");
-  element.textContent = text;
-  element.className = className;
-}
-
-function showTemporaryMessage(text, className = "", duration = 1800) {
-  showMessage(text, className);
-
-  window.setTimeout(() => {
-    if (selectedZone && scannerRunning) {
-      showMessage(`Scanner attivo sulla zona ${selectedZone.zoneCode}`);
-    }
-  }, duration);
-}
+async function installPwa(){if(!deferredInstallPrompt){toast('Installazione non disponibile in questo browser');return}deferredInstallPrompt.prompt();try{await deferredInstallPrompt.userChoice}finally{deferredInstallPrompt=null;$('installAppButton').hidden=true}}
+function showPwaUpdate(worker){state.waitingServiceWorker=worker;$('updateNotice').hidden=false}
+function applyPwaUpdate(){if(state.waitingServiceWorker)state.waitingServiceWorker.postMessage({type:'SKIP_WAITING'});else window.location.reload()}

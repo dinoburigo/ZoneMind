@@ -21,7 +21,7 @@ from .database import DB_PATH, get_connection, initialize_database
 BASE_DIR = Path(__file__).resolve().parents[2]
 PUBLIC_DIR = BASE_DIR / "public"
 
-app = FastAPI(title="ZoneMind API", version="0.8.7")
+app = FastAPI(title="ZoneMind API", version="0.9.6")
 
 
 class StorePayload(BaseModel):
@@ -41,6 +41,26 @@ class Assignment(BaseModel):
     zoneCode: str = Field(min_length=1)
     updatedAt: str = Field(min_length=1)
     createdBy: str | None = None
+
+
+class MoveAssignmentPayload(BaseModel):
+    storeCode: str = Field(min_length=1)
+    layoutId: str = Field(min_length=1)
+    articleCode: str = Field(min_length=1)
+    scannedEan: str | None = None
+    fromZoneId: str = Field(min_length=1)
+    fromZoneCode: str = Field(min_length=1)
+    toZoneId: str = Field(min_length=1)
+    toZoneCode: str = Field(min_length=1)
+    movedAt: str = Field(min_length=1)
+    operator: str | None = None
+
+
+class OfflineOperationPayload(BaseModel):
+    operationId: str = Field(min_length=8, max_length=100)
+    type: str = Field(pattern="^(CREATE_ASSIGNMENT|MOVE_ASSIGNMENT)$")
+    payload: dict[str, Any]
+    force: bool = False
 
 
 @app.on_event("startup")
@@ -63,7 +83,7 @@ def seed_layout_from_file() -> None:
 
 @app.get("/api/health")
 def health() -> dict[str, str]:
-    return {"status": "ok", "version": "0.8.7"}
+    return {"status": "ok", "version": "0.9.6"}
 
 
 
@@ -102,7 +122,7 @@ def _system_snapshot() -> dict[str, Any]:
     stat = DB_PATH.stat() if exists else None
     modified = datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat() if stat else None
     return {
-        "api": {"status": "ok", "version": "0.8.7"},
+        "api": {"status": "ok", "version": "0.9.6"},
         "serverTime": datetime.now(timezone.utc).isoformat(),
         "runtime": {
             "python": platform.python_version(),
@@ -843,6 +863,162 @@ def save_assignment(assignment: Assignment) -> dict[str, str]:
         )
 
     return {"status": "SYNCED"}
+
+
+
+
+@app.post("/api/mapper/move-assignment")
+def move_assignment(payload: MoveAssignmentPayload) -> dict[str, str]:
+    if payload.fromZoneId == payload.toZoneId:
+        raise HTTPException(400, "La zona di origine e quella di destinazione coincidono")
+
+    with get_connection() as connection:
+        current = connection.execute(
+            """
+            SELECT zone_id, zone_code
+            FROM article_zone_assignments
+            WHERE store_code = ? AND layout_id = ? AND article_code = ?
+            """,
+            (payload.storeCode, payload.layoutId, payload.articleCode),
+        ).fetchone()
+
+        if current is None:
+            raise HTTPException(409, "L'associazione precedente non esiste più. Aggiorna i dati e riprova")
+
+        if current["zone_id"] != payload.fromZoneId:
+            raise HTTPException(409, f"L'articolo risulta ora associato alla zona {current['zone_code']}")
+
+        cursor = connection.execute(
+            """
+            UPDATE article_zone_assignments
+            SET zone_id = ?, zone_code = ?, scanned_ean = ?, updated_at = ?,
+                source = 'SCANNER', created_by = ?
+            WHERE store_code = ? AND layout_id = ? AND article_code = ?
+              AND zone_id = ?
+            """,
+            (
+                payload.toZoneId, payload.toZoneCode, payload.scannedEan, payload.movedAt,
+                payload.operator, payload.storeCode, payload.layoutId, payload.articleCode,
+                payload.fromZoneId,
+            ),
+        )
+        if cursor.rowcount != 1:
+            raise HTTPException(409, "Associazione modificata da un'altra sessione")
+
+        connection.execute(
+            """
+            INSERT INTO article_movement_log(
+                moved_at, store_code, layout_id, article_code, scanned_ean,
+                from_zone_id, from_zone_code, to_zone_id, to_zone_code,
+                operator_name, source
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'SCANNER')
+            """,
+            (
+                payload.movedAt, payload.storeCode, payload.layoutId, payload.articleCode,
+                payload.scannedEan, payload.fromZoneId, payload.fromZoneCode,
+                payload.toZoneId, payload.toZoneCode, payload.operator,
+            ),
+        )
+
+    return {
+        "status": "MOVED",
+        "articleCode": payload.articleCode,
+        "fromZoneCode": payload.fromZoneCode,
+        "toZoneCode": payload.toZoneCode,
+    }
+
+
+@app.post("/api/mapper/sync-operation")
+def sync_offline_operation(operation: OfflineOperationPayload) -> dict[str, Any]:
+    """Synchronize one queued Mapper operation with idempotency and conflict detection."""
+    with get_connection() as connection:
+        completed = connection.execute(
+            "SELECT response_json FROM mapper_sync_operations WHERE operation_id = ?",
+            (operation.operationId,),
+        ).fetchone()
+        if completed:
+            response = json.loads(completed["response_json"])
+            response["idempotentReplay"] = True
+            return response
+
+        data = operation.payload
+        required = ("storeCode", "layoutId", "articleCode")
+        if any(not data.get(name) for name in required):
+            raise HTTPException(422, "Operazione offline incompleta")
+
+        current = connection.execute(
+            """SELECT zone_id, zone_code, updated_at
+               FROM article_zone_assignments
+               WHERE store_code=? AND layout_id=? AND article_code=?""",
+            (data["storeCode"], data["layoutId"], data["articleCode"]),
+        ).fetchone()
+
+        target_zone_id = data.get("zoneId") if operation.type == "CREATE_ASSIGNMENT" else data.get("toZoneId")
+        target_zone_code = data.get("zoneCode") if operation.type == "CREATE_ASSIGNMENT" else data.get("toZoneCode")
+        expected_zone_id = None if operation.type == "CREATE_ASSIGNMENT" else data.get("fromZoneId")
+
+        if current and current["zone_id"] == target_zone_id:
+            response = {"status": "ALREADY_APPLIED", "operationId": operation.operationId,
+                        "articleCode": data["articleCode"], "zoneCode": current["zone_code"]}
+        else:
+            conflict = False
+            reason = None
+            if operation.type == "CREATE_ASSIGNMENT" and current is not None:
+                conflict, reason = True, "ARTICLE_ALREADY_ASSIGNED"
+            elif operation.type == "MOVE_ASSIGNMENT":
+                if current is None:
+                    conflict, reason = True, "ASSIGNMENT_MISSING"
+                elif current["zone_id"] != expected_zone_id:
+                    conflict, reason = True, "ASSIGNMENT_CHANGED"
+
+            if conflict and not operation.force:
+                raise HTTPException(status_code=409, detail={
+                    "code": reason,
+                    "operationId": operation.operationId,
+                    "articleCode": data["articleCode"],
+                    "serverZoneId": current["zone_id"] if current else None,
+                    "serverZoneCode": current["zone_code"] if current else None,
+                    "serverUpdatedAt": current["updated_at"] if current else None,
+                    "offlineZoneId": target_zone_id,
+                    "offlineZoneCode": target_zone_code,
+                })
+
+            timestamp = data.get("updatedAt") or data.get("movedAt") or datetime.now(timezone.utc).isoformat()
+            operator_name = data.get("createdBy") or data.get("operator")
+            previous_zone_id = current["zone_id"] if current else None
+            previous_zone_code = current["zone_code"] if current else None
+            connection.execute(
+                """INSERT INTO article_zone_assignments(
+                       store_code, layout_id, article_code, zone_id, zone_code, scanned_ean,
+                       updated_at, source, created_by
+                   ) VALUES (?, ?, ?, ?, ?, ?, ?, 'SCANNER', ?)
+                   ON CONFLICT(store_code, layout_id, article_code) DO UPDATE SET
+                       zone_id=excluded.zone_id, zone_code=excluded.zone_code,
+                       scanned_ean=excluded.scanned_ean, updated_at=excluded.updated_at,
+                       source='SCANNER', created_by=excluded.created_by""",
+                (data["storeCode"], data["layoutId"], data["articleCode"], target_zone_id,
+                 target_zone_code, data.get("scannedEan"), timestamp, operator_name),
+            )
+            if previous_zone_id and previous_zone_id != target_zone_id:
+                connection.execute(
+                    """INSERT INTO article_movement_log(
+                           moved_at, store_code, layout_id, article_code, scanned_ean,
+                           from_zone_id, from_zone_code, to_zone_id, to_zone_code,
+                           operator_name, source
+                       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'OFFLINE_SYNC')""",
+                    (timestamp, data["storeCode"], data["layoutId"], data["articleCode"],
+                     data.get("scannedEan"), previous_zone_id, previous_zone_code,
+                     target_zone_id, target_zone_code, operator_name),
+                )
+            response = {"status": "FORCED" if operation.force and conflict else "SYNCED",
+                        "operationId": operation.operationId, "articleCode": data["articleCode"],
+                        "zoneCode": target_zone_code}
+
+        connection.execute(
+            "INSERT INTO mapper_sync_operations(operation_id, operation_type, processed_at, response_json) VALUES (?, ?, ?, ?)",
+            (operation.operationId, operation.type, datetime.now(timezone.utc).isoformat(), json.dumps(response)),
+        )
+        return response
 
 
 @app.get("/api/stores/{store}/layouts/{layout}/assignments")

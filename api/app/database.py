@@ -151,6 +151,42 @@ def initialize_database() -> None:
             "WHERE source IS NULL OR source=''"
         )
 
+        # Storico dei trasferimenti di articolo tra zone effettuati dal Mapper.
+        connection.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS article_movement_log(
+                movement_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                moved_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                store_code TEXT NOT NULL,
+                layout_id TEXT NOT NULL,
+                article_code TEXT NOT NULL,
+                scanned_ean TEXT,
+                from_zone_id TEXT NOT NULL,
+                from_zone_code TEXT NOT NULL,
+                to_zone_id TEXT NOT NULL,
+                to_zone_code TEXT NOT NULL,
+                operator_name TEXT,
+                source TEXT NOT NULL DEFAULT 'SCANNER',
+                FOREIGN KEY(store_code) REFERENCES stores(store_code),
+                FOREIGN KEY(layout_id) REFERENCES layouts(layout_id),
+                FOREIGN KEY(article_code) REFERENCES articles(article_code)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_movement_log_store_layout_date
+                ON article_movement_log(store_code, layout_id, moved_at DESC);
+
+            CREATE TABLE IF NOT EXISTS mapper_sync_operations(
+                operation_id TEXT PRIMARY KEY,
+                operation_type TEXT NOT NULL,
+                processed_at TEXT NOT NULL,
+                response_json TEXT NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_mapper_sync_processed_at
+                ON mapper_sync_operations(processed_at DESC);
+            """
+        )
+
 
 def _ensure_column(
     connection: sqlite3.Connection,
