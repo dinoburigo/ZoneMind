@@ -1,5 +1,4 @@
 from __future__ import annotations
-
 import sqlite3
 from pathlib import Path
 
@@ -29,14 +28,12 @@ def initialize_database() -> None:
                 updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
-
             CREATE TABLE IF NOT EXISTS articles(
                 article_code TEXT PRIMARY KEY,
                 description TEXT,
                 image_url TEXT,
                 updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
-
             CREATE TABLE IF NOT EXISTS article_barcodes(
                 ean TEXT PRIMARY KEY,
                 article_code TEXT NOT NULL,
@@ -45,7 +42,6 @@ def initialize_database() -> None:
                 updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY(article_code) REFERENCES articles(article_code)
             );
-
             CREATE TABLE IF NOT EXISTS store_articles(
                 store_code TEXT NOT NULL,
                 article_code TEXT NOT NULL,
@@ -55,17 +51,18 @@ def initialize_database() -> None:
                 FOREIGN KEY(store_code) REFERENCES stores(store_code),
                 FOREIGN KEY(article_code) REFERENCES articles(article_code)
             );
-
             CREATE TABLE IF NOT EXISTS layouts(
                 layout_id TEXT PRIMARY KEY,
                 store_code TEXT NOT NULL,
                 layout_code TEXT NOT NULL,
+                layout_name TEXT,
+                description TEXT,
                 layout_json TEXT NOT NULL,
-                active_flag INTEGER NOT NULL DEFAULT 1,
+                active_flag INTEGER NOT NULL DEFAULT 0,
                 updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY(store_code) REFERENCES stores(store_code)
             );
-
             CREATE TABLE IF NOT EXISTS article_zone_assignments(
                 store_code TEXT NOT NULL,
                 layout_id TEXT NOT NULL,
@@ -74,12 +71,13 @@ def initialize_database() -> None:
                 zone_code TEXT NOT NULL,
                 scanned_ean TEXT,
                 updated_at TEXT NOT NULL,
+                source TEXT,
+                created_by TEXT,
                 PRIMARY KEY(store_code, layout_id, article_code),
                 FOREIGN KEY(store_code) REFERENCES stores(store_code),
                 FOREIGN KEY(layout_id) REFERENCES layouts(layout_id),
                 FOREIGN KEY(article_code) REFERENCES articles(article_code)
             );
-
             CREATE TABLE IF NOT EXISTS import_runs(
                 import_id INTEGER PRIMARY KEY AUTOINCREMENT,
                 store_code TEXT NOT NULL,
@@ -91,59 +89,28 @@ def initialize_database() -> None:
                 imported_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY(store_code) REFERENCES stores(store_code)
             );
-
             CREATE INDEX IF NOT EXISTS idx_store_articles_store
                 ON store_articles(store_code, active_flag);
-
+            CREATE INDEX IF NOT EXISTS idx_layouts_store_active
+                ON layouts(store_code, active_flag, updated_at DESC);
             CREATE INDEX IF NOT EXISTS idx_assignments_layout_zone
                 ON article_zone_assignments(layout_id, zone_id);
-
             CREATE INDEX IF NOT EXISTS idx_import_runs_store_date
                 ON import_runs(store_code, imported_at DESC);
             """
         )
-
-        # SQLite non consente ALTER TABLE ... ADD COLUMN con
-        # DEFAULT CURRENT_TIMESTAMP su tabelle già esistenti.
-        # Aggiungiamo quindi la colonna senza default e valorizziamo
-        # i record preesistenti con un UPDATE separato.
-
         _ensure_column(connection, "stores", "city", "TEXT")
         _ensure_column(connection, "stores", "country_code", "TEXT")
         _ensure_column(connection, "stores", "active_flag", "INTEGER NOT NULL DEFAULT 1")
         _ensure_timestamp_column(connection, "stores", "updated_at")
-
-        _ensure_timestamp_column(
-            connection,
-            "stores",
-            "created_at",
-        )
-        _ensure_timestamp_column(
-            connection,
-            "articles",
-            "updated_at",
-        )
-        _ensure_timestamp_column(
-            connection,
-            "article_barcodes",
-            "updated_at",
-        )
-        _ensure_timestamp_column(
-            connection,
-            "store_articles",
-            "updated_at",
-        )
-
-        # La tabella layouts delle versioni precedenti non conteneva
-        # created_at. La pagina storico 0.8.5 usa questa colonna.
-        _ensure_timestamp_column(
-            connection,
-            "layouts",
-            "created_at",
-        )
-
-        # Metadati di audit delle associazioni. I record storici vengono
-        # classificati come SCANNER, unica origine operativa prevista nella 0.8.6.
+        _ensure_timestamp_column(connection, "stores", "created_at")
+        _ensure_timestamp_column(connection, "articles", "updated_at")
+        _ensure_timestamp_column(connection, "article_barcodes", "updated_at")
+        _ensure_timestamp_column(connection, "store_articles", "updated_at")
+        _ensure_timestamp_column(connection, "layouts", "created_at")
+        _ensure_timestamp_column(connection, "layouts", "updated_at")
+        _ensure_column(connection, "layouts", "layout_name", "TEXT")
+        _ensure_column(connection, "layouts", "description", "TEXT")
         _ensure_column(connection, "article_zone_assignments", "source", "TEXT")
         _ensure_column(connection, "article_zone_assignments", "created_by", "TEXT")
         connection.execute(
@@ -151,82 +118,18 @@ def initialize_database() -> None:
             "WHERE source IS NULL OR source=''"
         )
 
-        # Storico dei trasferimenti di articolo tra zone effettuati dal Mapper.
-        connection.executescript(
-            """
-            CREATE TABLE IF NOT EXISTS article_movement_log(
-                movement_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                moved_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                store_code TEXT NOT NULL,
-                layout_id TEXT NOT NULL,
-                article_code TEXT NOT NULL,
-                scanned_ean TEXT,
-                from_zone_id TEXT NOT NULL,
-                from_zone_code TEXT NOT NULL,
-                to_zone_id TEXT NOT NULL,
-                to_zone_code TEXT NOT NULL,
-                operator_name TEXT,
-                source TEXT NOT NULL DEFAULT 'SCANNER',
-                FOREIGN KEY(store_code) REFERENCES stores(store_code),
-                FOREIGN KEY(layout_id) REFERENCES layouts(layout_id),
-                FOREIGN KEY(article_code) REFERENCES articles(article_code)
-            );
 
-            CREATE INDEX IF NOT EXISTS idx_movement_log_store_layout_date
-                ON article_movement_log(store_code, layout_id, moved_at DESC);
-
-            CREATE TABLE IF NOT EXISTS mapper_sync_operations(
-                operation_id TEXT PRIMARY KEY,
-                operation_type TEXT NOT NULL,
-                processed_at TEXT NOT NULL,
-                response_json TEXT NOT NULL
-            );
-
-            CREATE INDEX IF NOT EXISTS idx_mapper_sync_processed_at
-                ON mapper_sync_operations(processed_at DESC);
-            """
-        )
-
-
-def _ensure_column(
-    connection: sqlite3.Connection,
-    table_name: str,
-    column_name: str,
-    definition: str,
-) -> None:
-    columns = {
-        row["name"]
-        for row in connection.execute(
-            f"PRAGMA table_info({table_name})"
-        ).fetchall()
-    }
-
+def _ensure_column(connection: sqlite3.Connection, table_name: str, column_name: str, definition: str) -> None:
+    columns = {row["name"] for row in connection.execute(f"PRAGMA table_info({table_name})").fetchall()}
     if column_name not in columns:
-        connection.execute(
-            f"ALTER TABLE {table_name} ADD COLUMN {column_name} {definition}"
-        )
+        connection.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {definition}")
 
 
-def _ensure_timestamp_column(
-    connection: sqlite3.Connection,
-    table_name: str,
-    column_name: str,
-) -> None:
-    columns = {
-        row["name"]
-        for row in connection.execute(
-            f"PRAGMA table_info({table_name})"
-        ).fetchall()
-    }
-
+def _ensure_timestamp_column(connection: sqlite3.Connection, table_name: str, column_name: str) -> None:
+    columns = {row["name"] for row in connection.execute(f"PRAGMA table_info({table_name})").fetchall()}
     if column_name not in columns:
-        connection.execute(
-            f"ALTER TABLE {table_name} "
-            f"ADD COLUMN {column_name} TEXT"
-        )
-
+        connection.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} TEXT")
     connection.execute(
-        f"UPDATE {table_name} "
-        f"SET {column_name} = CURRENT_TIMESTAMP "
+        f"UPDATE {table_name} SET {column_name} = CURRENT_TIMESTAMP "
         f"WHERE {column_name} IS NULL OR {column_name} = ''"
     )

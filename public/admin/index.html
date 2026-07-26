@@ -10,383 +10,61 @@
 <body>
   <div class="app-layout">
     <aside id="appSidebar" class="app-sidebar">
-      <div class="brand-block">
-        <span class="brand-name">ZoneMind</span>
-        <span class="brand-area">Admin Console</span>
-      </div>
+      <div class="brand-block"><span class="brand-name">ZoneMind</span><span class="brand-area">Admin Console</span></div>
       <nav id="appMenu" class="app-menu" aria-label="Navigazione Admin"></nav>
-      <div class="sidebar-footer">Frontend <span id="frontendVersion">0.8.7</span></div>
+      <div class="sidebar-footer">Frontend <span id="frontendVersion">0.9.0</span></div>
     </aside>
-
     <div class="app-main">
       <header class="app-header">
-        <div class="header-title">
-          <button id="menuToggle" class="menu-toggle" type="button" aria-label="Apri menu">☰</button>
-          <div>
-            <h1 id="pageTitle">Dashboard</h1>
-            <p id="pageSubtitle">Stato operativo e sintesi dei dati ZoneMind</p>
-          </div>
-        </div>
-        <div class="header-actions">
-          <div class="system-status">
-            <span id="apiDot" class="status-dot"></span>
-            <span id="apiStatus">Verifica API...</span>
-          </div>
-          <span id="autoRefreshStatus" class="refresh-status">Aggiornamento automatico attivo</span>
-        </div>
+        <div class="header-title"><button id="menuToggle" class="menu-toggle" type="button" aria-label="Apri menu">☰</button><div><h1 id="pageTitle">Dashboard</h1><p id="pageSubtitle">Stato operativo e sintesi dei dati ZoneMind</p></div></div>
+        <div class="header-actions"><div class="system-status"><span id="apiDot" class="status-dot"></span><span id="apiStatus">Verifica API...</span></div><span id="autoRefreshStatus" class="refresh-status">Aggiornamento automatico attivo</span></div>
       </header>
-
       <main class="page-content">
-        <section class="store-bar">
-          <div>
-            <label for="storeSelect">Negozio operativo</label>
-            <small>I dati della dashboard seguono il negozio selezionato.</small>
-          </div>
-          <select id="storeSelect"></select>
-          <button id="refreshButton" class="ghost-button" type="button">Aggiorna ora</button>
-        </section>
-
-        <section id="emptyState" class="empty-state" hidden>
-          <h2>Nessun negozio disponibile</h2>
-          <p>Importa un catalogo CSV per creare il primo negozio.</p>
-        </section>
-
+        <section class="store-bar"><div><label for="storeSelect">Negozio operativo</label><small>I dati seguono il negozio selezionato.</small></div><select id="storeSelect"></select><button id="refreshButton" class="ghost-button" type="button">Aggiorna ora</button></section>
+        <section id="emptyState" class="empty-state" hidden><h2>Nessun negozio disponibile</h2><p>Importa un catalogo CSV o crea il primo negozio.</p></section>
         <section id="dashboard" hidden>
-          <div class="dashboard-heading">
-            <div>
-              <span class="section-kicker">Panoramica</span>
-              <h2 id="dashboardStoreName">Negozio</h2>
-              <p id="lastRefresh">Dati non ancora aggiornati</p>
-            </div>
-            <div id="overallStatus" class="health-badge neutral">Verifica in corso</div>
-          </div>
-
-          <div class="card-grid">
-            <article class="metric-card">
-              <div class="metric-top"><span>Articoli</span><span class="metric-icon" aria-hidden="true">▦</span></div>
-              <strong id="articleCount">0</strong>
-              <small>articoli attivi nel catalogo</small>
-            </article>
-            <article class="metric-card">
-              <div class="metric-top"><span>Barcode</span><span class="metric-icon" aria-hidden="true">▥</span></div>
-              <strong id="barcodeCount">0</strong>
-              <small>EAN disponibili per la scansione</small>
-            </article>
-            <article class="metric-card">
-              <div class="metric-top"><span>Zone</span><span class="metric-icon" aria-hidden="true">⌗</span></div>
-              <strong id="zoneCount">0</strong>
-              <small id="layoutCode">nessun layout</small>
-            </article>
-            <article class="metric-card">
-              <div class="metric-top"><span>Mappati</span><span class="metric-icon" aria-hidden="true">◎</span></div>
-              <strong id="assignmentCount">0</strong>
-              <small>articoli associati a una zona</small>
-            </article>
-            <article class="metric-card accent-card">
-              <div class="metric-top"><span>Copertura</span><span class="metric-icon" aria-hidden="true">%</span></div>
-              <strong id="coveragePercent">0%</strong>
-              <small id="coverageDetail">0 di 0 articoli</small>
-              <div class="progress-track"><span id="coverageBar"></span></div>
-            </article>
-            <article class="metric-card">
-              <div class="metric-top"><span>Negozi</span><span class="metric-icon" aria-hidden="true">⌂</span></div>
-              <strong id="storeCount">0</strong>
-              <small>negozi disponibili nel sistema</small>
-            </article>
-          </div>
-
-          <div class="insight-grid">
-            <article class="panel status-panel">
-              <div class="panel-heading">
-                <div>
-                  <span class="section-kicker">Stato sistema</span>
-                  <h2>Servizi operativi</h2>
-                  <p>Controlli essenziali dell'ambiente ZoneMind.</p>
-                </div>
-              </div>
-              <div class="status-list">
-                <div class="status-row"><span><i id="apiServiceDot" class="mini-dot"></i> API FastAPI</span><strong id="apiServiceText">Verifica...</strong></div>
-                <div class="status-row"><span><i id="databaseDot" class="mini-dot"></i> Database</span><strong id="databaseText">Verifica...</strong></div>
-                <div class="status-row"><span><i id="catalogDot" class="mini-dot"></i> Catalogo</span><strong id="catalogText">Verifica...</strong></div>
-                <div class="status-row"><span><i id="layoutDot" class="mini-dot"></i> Layout attivo</span><strong id="layoutText">Verifica...</strong></div>
-              </div>
-            </article>
-
-            <article class="panel activity-panel">
-              <div class="panel-heading">
-                <div>
-                  <span class="section-kicker">Attività recente</span>
-                  <h2>Ultimi aggiornamenti</h2>
-                  <p>Informazioni disponibili per il negozio selezionato.</p>
-                </div>
-              </div>
-              <div class="activity-list">
-                <div class="activity-item"><span class="activity-mark">CSV</span><div><strong>Ultimo import catalogo</strong><p id="lastImport">Nessun import registrato</p></div></div>
-                <div class="activity-item"><span class="activity-mark">MAP</span><div><strong>Ultima pubblicazione layout</strong><p id="lastLayoutUpdate">Nessun layout pubblicato</p></div></div>
-                <div class="activity-item"><span class="activity-mark">SYNC</span><div><strong>Ultimo aggiornamento dashboard</strong><p id="lastDashboardUpdate">Non ancora eseguito</p></div></div>
-              </div>
-            </article>
-          </div>
-
-          <div class="management-grid">
-            <article class="panel">
-              <div class="panel-heading">
-                <div>
-                  <span class="section-kicker">Importazione</span>
-                  <h2>Catalogo articoli</h2>
-                  <p>Importa il file CSV del negozio selezionato.</p>
-                </div>
-              </div>
-              <form id="catalogForm" class="upload-form">
-                <input id="csvFile" type="file" accept=".csv,text/csv" required>
-                <label class="checkbox-row">
-                  <input id="replaceCatalog" type="checkbox" checked>
-                  Sostituisci catalogo attivo
-                </label>
-                <button type="submit">Importa CSV</button>
-              </form>
-              <div id="catalogMessage" class="message" hidden></div>
-            </article>
-
-            <article class="panel">
-              <div class="panel-heading">
-                <div>
-                  <span class="section-kicker">Pubblicazione</span>
-                  <h2>Layout attivo</h2>
-                  <p>Carica il JSON esportato dall'Editor.</p>
-                </div>
-              </div>
-              <form id="layoutForm" class="upload-form">
-                <input id="layoutFile" type="file" accept=".json,application/json" required>
-                <button type="submit">Pubblica layout</button>
-              </form>
-              <div id="layoutMessage" class="message" hidden></div>
-            </article>
-          </div>
-
-          <article class="panel table-panel">
-            <div class="panel-heading table-toolbar">
-              <div>
-                <span class="section-kicker">Consultazione</span>
-                <h2>Articoli disponibili</h2>
-                <p>Anteprima del catalogo attivo del negozio.</p>
-              </div>
-              <input id="articleSearch" type="search" placeholder="Cerca codice o descrizione">
-            </div>
-            <div class="table-wrapper">
-              <table>
-                <thead><tr><th>Articolo</th><th>Descrizione</th><th>EAN</th></tr></thead>
-                <tbody id="articleTableBody"></tbody>
-              </table>
-            </div>
-            <div id="articleEmpty" class="table-empty" hidden>Nessun articolo trovato.</div>
-          </article>
-
-          <article class="panel table-panel">
-            <div class="panel-heading">
-              <div>
-                <span class="section-kicker">Mappatura</span>
-                <h2>Associazioni per zona</h2>
-                <p>Stato centralizzato prodotto dal Mapper.</p>
-              </div>
-            </div>
-            <div class="table-wrapper">
-              <table>
-                <thead><tr><th>Zona</th><th>Articolo</th><th>Descrizione</th><th>Aggiornamento</th></tr></thead>
-                <tbody id="assignmentTableBody"></tbody>
-              </table>
-            </div>
-            <div id="assignmentEmpty" class="table-empty" hidden>Nessuna associazione centralizzata.</div>
-          </article>
+          <div class="dashboard-heading"><div><span class="section-kicker">Panoramica</span><h2 id="dashboardStoreName">Negozio</h2><p id="lastRefresh">Dati non ancora aggiornati</p></div><div id="overallStatus" class="health-badge neutral">Verifica in corso</div></div>
+          <div class="card-grid"><article class="metric-card"><div class="metric-top"><span>Articoli</span><span class="metric-icon">▦</span></div><strong id="articleCount">0</strong><small>articoli attivi nel catalogo</small></article><article class="metric-card"><div class="metric-top"><span>Barcode</span><span class="metric-icon">▥</span></div><strong id="barcodeCount">0</strong><small>EAN disponibili</small></article><article class="metric-card"><div class="metric-top"><span>Zone</span><span class="metric-icon">⌗</span></div><strong id="zoneCount">0</strong><small id="layoutCode">nessun layout</small></article><article class="metric-card"><div class="metric-top"><span>Mappati</span><span class="metric-icon">◎</span></div><strong id="assignmentCount">0</strong><small>articoli associati a una zona</small></article><article class="metric-card accent-card"><div class="metric-top"><span>Copertura</span><span class="metric-icon">%</span></div><strong id="coveragePercent">0%</strong><small id="coverageDetail">0 di 0 articoli</small><div class="progress-track"><span id="coverageBar"></span></div></article><article class="metric-card"><div class="metric-top"><span>Negozi</span><span class="metric-icon">⌂</span></div><strong id="storeCount">0</strong><small>negozi disponibili</small></article></div>
+          <div class="insight-grid"><article class="panel status-panel"><div class="panel-heading"><div><span class="section-kicker">Stato sistema</span><h2>Servizi operativi</h2><p>Controlli essenziali dell'ambiente ZoneMind.</p></div></div><div class="status-list"><div class="status-row"><span><i id="apiServiceDot" class="mini-dot"></i> API FastAPI</span><strong id="apiServiceText">Verifica...</strong></div><div class="status-row"><span><i id="databaseDot" class="mini-dot"></i> Database</span><strong id="databaseText">Verifica...</strong></div><div class="status-row"><span><i id="catalogDot" class="mini-dot"></i> Catalogo</span><strong id="catalogText">Verifica...</strong></div><div class="status-row"><span><i id="layoutDot" class="mini-dot"></i> Layout attivi</span><strong id="layoutText">Verifica...</strong></div></div></article><article class="panel activity-panel"><div class="panel-heading"><div><span class="section-kicker">Attività recente</span><h2>Ultimi aggiornamenti</h2><p>Informazioni disponibili per il negozio selezionato.</p></div></div><div class="activity-list"><div class="activity-item"><span class="activity-mark">CSV</span><div><strong>Ultimo import catalogo</strong><p id="lastImport">Nessun import registrato</p></div></div><div class="activity-item"><span class="activity-mark">MAP</span><div><strong>Ultimo aggiornamento layout</strong><p id="lastLayoutUpdate">Nessun layout pubblicato</p></div></div><div class="activity-item"><span class="activity-mark">SYNC</span><div><strong>Ultimo aggiornamento dashboard</strong><p id="lastDashboardUpdate">Non ancora eseguito</p></div></div></div></article></div>
+          <div class="management-grid"><article class="panel"><div class="panel-heading"><div><span class="section-kicker">Importazione</span><h2>Catalogo articoli</h2><p>Importa il file CSV del negozio selezionato.</p></div></div><form id="catalogForm" class="upload-form"><input id="csvFile" type="file" accept=".csv,text/csv" required><label class="checkbox-row"><input id="replaceCatalog" type="checkbox" checked> Sostituisci catalogo attivo</label><button type="submit">Importa CSV</button></form><div id="catalogMessage" class="message" hidden></div></article><article class="panel"><div class="panel-heading"><div><span class="section-kicker">Compatibilità</span><h2>Pubblica layout JSON</h2><p>Upload tecnico legacy: preferire la nuova sezione Layout.</p></div></div><form id="layoutForm" class="upload-form"><input id="layoutFile" type="file" accept=".json,application/json"><button type="submit">Pubblica JSON</button></form><div id="layoutMessage" class="message" hidden></div></article></div>
+          <article class="panel table-panel"><div class="panel-heading table-toolbar"><div><span class="section-kicker">Consultazione</span><h2>Articoli disponibili</h2><p>Anteprima del catalogo attivo del negozio.</p></div><input id="articleSearch" type="search" placeholder="Cerca codice o descrizione"></div><div class="table-wrapper"><table><thead><tr><th>Articolo</th><th>Descrizione</th><th>EAN</th></tr></thead><tbody id="articleTableBody"></tbody></table></div><div id="articleEmpty" class="table-empty" hidden>Nessun articolo trovato.</div></article>
+          <article class="panel table-panel"><div class="panel-heading"><div><span class="section-kicker">Mappatura</span><h2>Associazioni per zona</h2><p>Stato centralizzato prodotto dal Mapper.</p></div></div><div class="table-wrapper"><table><thead><tr><th>Zona</th><th>Articolo</th><th>Descrizione</th><th>Aggiornamento</th></tr></thead><tbody id="assignmentTableBody"></tbody></table></div><div id="assignmentEmpty" class="table-empty" hidden>Nessuna associazione centralizzata.</div></article>
         </section>
 
         <section id="catalogPage" class="admin-page" hidden>
-          <div class="dashboard-heading">
-            <div><span class="section-kicker">Patrimonio informativo</span><h2>Catalogo articoli</h2><p>Ricerca, filtra e consulta gli articoli del negozio operativo.</p></div>
-            <button id="catalogRefreshButton" type="button" class="ghost-button">Aggiorna</button>
-          </div>
-
-          <article class="panel catalog-filter-panel">
-            <div class="catalog-filters">
-              <label><span>Ricerca</span><input id="catalogSearch" type="search" placeholder="Codice, descrizione o EAN"></label>
-              <label><span>Stato mappatura</span><select id="catalogStatus"><option value="all">Tutti</option><option value="mapped">Mappati</option><option value="unmapped">Non mappati</option></select></label>
-              <label><span>Ordina per</span><select id="catalogSort"><option value="articleCode:asc">Codice A-Z</option><option value="articleCode:desc">Codice Z-A</option><option value="description:asc">Descrizione A-Z</option><option value="barcodeCount:desc">Più EAN</option><option value="zoneCode:asc">Zona</option></select></label>
-              <label><span>Righe</span><select id="catalogPageSize"><option>10</option><option selected>25</option><option>50</option><option>100</option></select></label>
-            </div>
-          </article>
-
-          <article class="panel table-panel">
-            <div class="panel-heading table-toolbar">
-              <div><span class="section-kicker">Elenco</span><h2 id="catalogResultTitle">Articoli</h2><p id="catalogResultInfo">Seleziona un negozio per consultare il catalogo.</p></div>
-            </div>
-            <div class="table-wrapper">
-              <table class="catalog-table">
-                <thead><tr><th>Articolo</th><th>Descrizione</th><th>EAN</th><th>Zona</th><th>Stato</th><th></th></tr></thead>
-                <tbody id="catalogTableBody"></tbody>
-              </table>
-            </div>
-            <div id="catalogEmpty" class="table-empty" hidden>Nessun articolo trovato.</div>
-            <div class="pagination-bar"><button id="catalogPrev" class="ghost-button" type="button">Precedente</button><span id="catalogPageInfo">Pagina 1</span><button id="catalogNext" class="ghost-button" type="button">Successiva</button></div>
-          </article>
-
-          <aside id="articleDrawer" class="article-drawer" hidden aria-label="Dettaglio articolo">
-            <div class="drawer-header"><div><span class="section-kicker">Dettaglio articolo</span><h2 id="drawerArticleCode">—</h2></div><button id="drawerClose" class="icon-button" type="button" aria-label="Chiudi">×</button></div>
-            <p id="drawerDescription" class="drawer-description">—</p>
-            <div class="drawer-grid"><div><small>Negozio</small><strong id="drawerStore">—</strong></div><div><small>Zona</small><strong id="drawerZone">Non mappato</strong></div><div><small>Stato</small><strong id="drawerStatus">—</strong></div><div><small>Ultimo mapping</small><strong id="drawerUpdated">—</strong></div></div>
-            <h3>Barcode</h3><div id="drawerBarcodes" class="barcode-list"></div>
-          </aside>
-          <div id="drawerBackdrop" class="drawer-backdrop" hidden></div>
+          <div class="dashboard-heading"><div><span class="section-kicker">Patrimonio informativo</span><h2>Catalogo articoli</h2><p>Ricerca, filtra e consulta gli articoli del negozio operativo.</p></div><button id="catalogRefreshButton" type="button" class="ghost-button">Aggiorna</button></div>
+          <article class="panel catalog-filter-panel"><div class="catalog-filters"><label><span>Ricerca</span><input id="catalogSearch" type="search" placeholder="Codice, descrizione o EAN"></label><label><span>Stato mappatura</span><select id="catalogStatus"><option value="all">Tutti</option><option value="mapped">Mappati</option><option value="unmapped">Non mappati</option></select></label><label><span>Ordina per</span><select id="catalogSort"><option value="articleCode:asc">Codice A-Z</option><option value="articleCode:desc">Codice Z-A</option><option value="description:asc">Descrizione A-Z</option><option value="barcodeCount:desc">Più EAN</option><option value="zoneCode:asc">Zona</option></select></label><label><span>Righe</span><select id="catalogPageSize"><option>10</option><option selected>25</option><option>50</option><option>100</option></select></label></div></article>
+          <article class="panel table-panel"><div class="panel-heading table-toolbar"><div><span class="section-kicker">Elenco</span><h2 id="catalogResultTitle">Articoli</h2><p id="catalogResultInfo">Seleziona un negozio per consultare il catalogo.</p></div></div><div class="table-wrapper"><table class="catalog-table"><thead><tr><th>Articolo</th><th>Descrizione</th><th>EAN</th><th>Zona</th><th>Stato</th><th></th></tr></thead><tbody id="catalogTableBody"></tbody></table></div><div id="catalogEmpty" class="table-empty" hidden>Nessun articolo trovato.</div><div class="pagination-bar"><button id="catalogPrev" class="ghost-button" type="button">Precedente</button><span id="catalogPageInfo">Pagina 1</span><button id="catalogNext" class="ghost-button" type="button">Successiva</button></div></article>
+          <aside id="articleDrawer" class="article-drawer" hidden aria-label="Dettaglio articolo"><div class="drawer-header"><div><span class="section-kicker">Dettaglio articolo</span><h2 id="drawerArticleCode">—</h2></div><button id="drawerClose" class="icon-button" type="button" aria-label="Chiudi">×</button></div><p id="drawerDescription" class="drawer-description">—</p><div class="drawer-grid"><div><small>Negozio</small><strong id="drawerStore">—</strong></div><div><small>Zona</small><strong id="drawerZone">Non mappato</strong></div><div><small>Stato</small><strong id="drawerStatus">—</strong></div><div><small>Ultimo mapping</small><strong id="drawerUpdated">—</strong></div></div><h3>Barcode</h3><div id="drawerBarcodes" class="barcode-list"></div></aside><div id="drawerBackdrop" class="drawer-backdrop" hidden></div>
         </section>
 
-
         <section id="layoutsPage" class="admin-page" hidden>
-          <div class="dashboard-heading">
-            <div><span class="section-kicker">Planimetrie</span><h2>Gestione layout</h2><p>Pubblica, consulta e riattiva le versioni disponibili per il negozio operativo.</p></div>
-            <button id="layoutRefreshButton" type="button" class="ghost-button">Aggiorna</button>
-          </div>
-          <div class="layouts-grid">
-            <article class="panel">
-              <div class="panel-heading"><div><span class="section-kicker">Nuova versione</span><h2>Pubblica layout</h2><p>Carica il JSON esportato dall'Editor. La nuova versione diventa attiva.</p></div></div>
-              <form id="layoutManagementForm" class="upload-form">
-                <input id="layoutManagementFile" type="file" accept=".json,application/json" required>
-                <button type="submit">Pubblica layout</button>
-              </form>
-              <div id="layoutManagementMessage" class="message" hidden></div>
-            </article>
-            <article class="panel layout-summary-card">
-              <div class="panel-heading"><div><span class="section-kicker">Versione attiva</span><h2 id="activeLayoutName">Nessun layout</h2><p id="activeLayoutMeta">Seleziona un negozio con un layout pubblicato.</p></div></div>
-              <div class="layout-summary-metrics"><div><small>Zone</small><strong id="activeLayoutZones">0</strong></div><div><small>Articoli mappati</small><strong id="activeLayoutAssignments">0</strong></div></div>
-            </article>
-          </div>
-          <article class="panel table-panel">
-            <div class="panel-heading"><div><span class="section-kicker">Storico</span><h2>Layout pubblicati</h2><p>Le versioni precedenti restano disponibili e possono essere riattivate.</p></div></div>
-            <div class="table-wrapper"><table><thead><tr><th>Codice</th><th>Layout ID</th><th>Zone</th><th>Mappati</th><th>Aggiornamento</th><th>Stato</th><th>Azioni</th></tr></thead><tbody id="layoutTableBody"></tbody></table></div>
-            <div id="layoutTableEmpty" class="table-empty" hidden>Nessun layout pubblicato.</div>
+          <div class="dashboard-heading"><div><span class="section-kicker">Store Space Management</span><h2>Layout del negozio</h2><p>Crea una planimetria, disegna le zone, salva il layout e decidi se renderlo attivo. Sono ammessi più layout attivi per lo stesso negozio.</p></div><div class="row-actions"><button id="newLayoutButton" type="button">Nuovo layout</button><button id="layoutRefreshButton" type="button" class="ghost-button">Aggiorna</button></div></div>
+          <div class="layout-active-strip" id="activeLayoutsStrip"><span>Nessun layout attivo</span></div>
+          <article class="panel table-panel"><div class="panel-heading"><div><span class="section-kicker">Layout configurati</span><h2>Lista layout</h2><p>Ogni layout è una combinazione di planimetria e zone per il negozio selezionato.</p></div></div><div class="table-wrapper"><table><thead><tr><th>Nome</th><th>Zone</th><th>Planimetria</th><th>Aggiornamento</th><th>Stato</th><th>Azioni</th></tr></thead><tbody id="layoutTableBody"></tbody></table></div><div id="layoutTableEmpty" class="table-empty" hidden>Nessun layout creato per questo negozio.</div></article>
+          <article id="layoutEditorPanel" class="panel layout-editor-panel" hidden>
+            <div class="panel-heading"><div><span class="section-kicker">Editor layout</span><h2 id="layoutEditorTitle">Nuovo layout</h2><p>Carica la planimetria, disegna le zone e salva il layout.</p></div><button id="cancelLayoutEdit" class="ghost-button" type="button">Chiudi editor</button></div>
+            <form id="layoutEditorForm" class="layout-editor-form">
+              <input id="layoutIdInput" type="hidden"><label><span>Nome layout</span><input id="layoutNameInput" required maxlength="120" placeholder="Estate 2027, Piano 1, Uomo, Donna..."></label><label><span>Descrizione</span><input id="layoutDescriptionInput" maxlength="240" placeholder="Opzionale"></label><label><span>Planimetria</span><input id="layoutImageInput" type="file" accept="image/png,image/jpeg,image/webp"></label>
+              <div class="form-actions"><button type="submit">Salva layout</button><button id="saveAndActivateLayout" type="button">Salva e attiva</button><button id="clearZonesButton" class="ghost-button" type="button">Cancella zone</button></div>
+            </form>
+            <div id="layoutEditorMessage" class="message" hidden></div>
+            <div class="layout-editor-workspace"><div class="layout-tools"><button id="newZoneButton" type="button" class="ghost-button">Nuova zona</button><button id="deleteZoneButton" type="button" class="danger-button" disabled>Elimina zona</button><span id="layoutZoneCounter">Zone: 0</span><small>Disegna con trascinamento sulla planimetria.</small></div><div id="layoutCanvas" class="layout-canvas-admin"><img id="layoutImagePreview" alt="Planimetria layout" draggable="false"><svg id="layoutSvg" xmlns="http://www.w3.org/2000/svg"></svg><div id="layoutCanvasEmpty" class="layout-canvas-empty">Carica una planimetria per iniziare.</div></div></div>
           </article>
-          <article id="layoutPreviewPanel" class="panel" hidden>
-            <div class="panel-heading"><div><span class="section-kicker">Anteprima tecnica</span><h2 id="layoutPreviewTitle">Layout</h2><p>Riepilogo delle zone contenute nel JSON.</p></div><button id="closeLayoutPreview" class="ghost-button" type="button">Chiudi</button></div>
-            <div id="layoutZonePreview" class="zone-chip-list"></div>
-          </article>
+          <article id="layoutPreviewPanel" class="panel" hidden><div class="panel-heading"><div><span class="section-kicker">Anteprima zone</span><h2 id="layoutPreviewTitle">Layout</h2><p>Riepilogo delle zone del layout.</p></div><button id="closeLayoutPreview" class="ghost-button" type="button">Chiudi</button></div><div id="layoutZonePreview" class="zone-chip-list"></div></article>
+          <form id="layoutManagementForm" hidden><input id="layoutManagementFile" type="file"><div id="layoutManagementMessage" class="message" hidden></div></form>
+          <span id="activeLayoutName" hidden></span><span id="activeLayoutMeta" hidden></span><span id="activeLayoutZones" hidden></span><span id="activeLayoutAssignments" hidden></span>
         </section>
 
         <section id="assignmentsPage" class="admin-page" hidden>
-          <div class="dashboard-heading">
-            <div><span class="section-kicker">Mappatura</span><h2>Assignment Explorer</h2><p>Consulta le associazioni generate dal Mapper. Questa sezione è in sola lettura.</p></div>
-            <div class="row-actions"><button id="assignmentsExportButton" type="button">Esporta CSV</button><button id="assignmentsRefreshButton" type="button" class="ghost-button">Aggiorna</button></div>
-          </div>
-          <div class="assignment-kpis">
-            <article class="panel"><small>Associazioni</small><strong id="assignmentsKpiTotal">0</strong></article>
-            <article class="panel"><small>Articoli mappati</small><strong id="assignmentsKpiArticles">0</strong></article>
-            <article class="panel"><small>Zone utilizzate</small><strong id="assignmentsKpiZones">0</strong></article>
-            <article class="panel"><small>Ultimo mapping</small><strong id="assignmentsKpiLast">—</strong></article>
-          </div>
-          <article class="panel catalog-filter-panel">
-            <div class="catalog-filters assignment-filters">
-              <label><span>Ricerca</span><input id="assignmentsSearch" type="search" placeholder="Articolo, descrizione o EAN"></label>
-              <label><span>Zona</span><select id="assignmentsZone"><option value="all">Tutte</option></select></label>
-              <label><span>Layout</span><select id="assignmentsLayout"><option value="active">Layout attivo</option><option value="all">Tutti i layout</option></select></label>
-              <label><span>Righe</span><select id="assignmentsPageSize"><option>10</option><option selected>25</option><option>50</option><option>100</option></select></label>
-            </div>
-          </article>
-          <article class="panel table-panel">
-            <div class="panel-heading table-toolbar"><div><span class="section-kicker">Elenco</span><h2 id="assignmentsResultTitle">Associazioni</h2><p id="assignmentsResultInfo">Seleziona un negozio per consultare le associazioni.</p></div></div>
-            <div class="table-wrapper"><table><thead><tr><th>Zona</th><th>Articolo</th><th>Descrizione</th><th>EAN scansito</th><th>Layout</th><th>Origine</th><th>Data/Ora</th></tr></thead><tbody id="assignmentsManagementBody"></tbody></table></div>
-            <div id="assignmentsManagementEmpty" class="table-empty" hidden>Nessuna associazione trovata.</div>
-            <div class="pagination-bar"><button id="assignmentsPrev" class="ghost-button" type="button">Precedente</button><span id="assignmentsPageInfo">Pagina 1</span><button id="assignmentsNext" class="ghost-button" type="button">Successiva</button></div>
-          </article>
-          <div id="assignmentDetailModal" class="modal-backdrop" hidden>
-            <article class="modal-card">
-              <div class="drawer-header"><div><span class="section-kicker">Dettaglio associazione</span><h2 id="assignmentDetailArticle">—</h2></div><button id="assignmentDetailClose" class="icon-button" type="button">×</button></div>
-              <p id="assignmentDetailDescription" class="drawer-description">—</p>
-              <div class="drawer-grid">
-                <div><small>Store</small><strong id="assignmentDetailStore">—</strong></div><div><small>Zona</small><strong id="assignmentDetailZone">—</strong></div>
-                <div><small>Layout</small><strong id="assignmentDetailLayout">—</strong></div><div><small>EAN</small><strong id="assignmentDetailEan">—</strong></div>
-                <div><small>Origine</small><strong id="assignmentDetailSource">SCANNER</strong></div><div><small>Operatore</small><strong id="assignmentDetailUser">—</strong></div>
-                <div><small>Data/Ora</small><strong id="assignmentDetailDate">—</strong></div>
-              </div>
-            </article>
-          </div>
+          <div class="dashboard-heading"><div><span class="section-kicker">Mappatura</span><h2>Assignment Explorer</h2><p>Consulta le associazioni generate dal Mapper. Questa sezione è in sola lettura.</p></div><div class="row-actions"><button id="assignmentsExportButton" type="button">Esporta CSV</button><button id="assignmentsRefreshButton" type="button" class="ghost-button">Aggiorna</button></div></div><div class="assignment-kpis"><article class="panel"><small>Associazioni</small><strong id="assignmentsKpiTotal">0</strong></article><article class="panel"><small>Articoli mappati</small><strong id="assignmentsKpiArticles">0</strong></article><article class="panel"><small>Zone utilizzate</small><strong id="assignmentsKpiZones">0</strong></article><article class="panel"><small>Ultimo mapping</small><strong id="assignmentsKpiLast">—</strong></article></div><article class="panel catalog-filter-panel"><div class="catalog-filters assignment-filters"><label><span>Ricerca</span><input id="assignmentsSearch" type="search" placeholder="Articolo, descrizione o EAN"></label><label><span>Zona</span><select id="assignmentsZone"><option value="all">Tutte</option></select></label><label><span>Layout</span><select id="assignmentsLayout"><option value="active">Layout attivi</option><option value="all">Tutti i layout</option></select></label><label><span>Righe</span><select id="assignmentsPageSize"><option>10</option><option selected>25</option><option>50</option><option>100</option></select></label></div></article><article class="panel table-panel"><div class="panel-heading table-toolbar"><div><span class="section-kicker">Elenco</span><h2 id="assignmentsResultTitle">Associazioni</h2><p id="assignmentsResultInfo">Seleziona un negozio per consultare le associazioni.</p></div></div><div class="table-wrapper"><table><thead><tr><th>Zona</th><th>Articolo</th><th>Descrizione</th><th>EAN scansito</th><th>Layout</th><th>Origine</th><th>Data/Ora</th></tr></thead><tbody id="assignmentsManagementBody"></tbody></table></div><div id="assignmentsManagementEmpty" class="table-empty" hidden>Nessuna associazione trovata.</div><div class="pagination-bar"><button id="assignmentsPrev" class="ghost-button" type="button">Precedente</button><span id="assignmentsPageInfo">Pagina 1</span><button id="assignmentsNext" class="ghost-button" type="button">Successiva</button></div></article><div id="assignmentDetailModal" class="modal-backdrop" hidden><article class="modal-card"><div class="drawer-header"><div><span class="section-kicker">Dettaglio associazione</span><h2 id="assignmentDetailArticle">—</h2></div><button id="assignmentDetailClose" class="icon-button" type="button">×</button></div><p id="assignmentDetailDescription" class="drawer-description">—</p><div class="drawer-grid"><div><small>Store</small><strong id="assignmentDetailStore">—</strong></div><div><small>Zona</small><strong id="assignmentDetailZone">—</strong></div><div><small>Layout</small><strong id="assignmentDetailLayout">—</strong></div><div><small>EAN</small><strong id="assignmentDetailEan">—</strong></div><div><small>Origine</small><strong id="assignmentDetailSource">SCANNER</strong></div><div><small>Operatore</small><strong id="assignmentDetailUser">—</strong></div><div><small>Data/Ora</small><strong id="assignmentDetailDate">—</strong></div></div></article></div>
         </section>
 
-
-
-        <section id="systemPage" class="admin-page" hidden>
-          <div class="dashboard-heading">
-            <div><span class="section-kicker">Diagnostica</span><h2>System Console</h2><p>Stato tecnico dell'applicazione e del database. Le funzioni disponibili sono non distruttive.</p></div>
-            <div class="row-actions"><button id="systemExportButton" type="button">Esporta diagnostica</button><button id="systemRefreshButton" type="button" class="ghost-button">Aggiorna</button></div>
-          </div>
-
-          <div class="system-kpis">
-            <article class="panel"><small>API</small><strong id="systemApiStatus">Verifica…</strong><span id="systemApiVersion">—</span></article>
-            <article class="panel"><small>Database</small><strong id="systemDbStatus">Verifica…</strong><span id="systemDbSize">—</span></article>
-            <article class="panel"><small>Integrità</small><strong id="systemIntegrity">Verifica…</strong><span>PRAGMA integrity_check</span></article>
-            <article class="panel"><small>Ora server</small><strong id="systemServerTime">—</strong><span id="systemUptimeNote">lettura in tempo reale</span></article>
-          </div>
-
-          <div class="system-grid">
-            <article class="panel">
-              <div class="panel-heading"><div><span class="section-kicker">Applicazione</span><h2>Versioni e runtime</h2><p>Informazioni utili per assistenza e troubleshooting.</p></div></div>
-              <dl class="system-detail-list">
-                <div><dt>Frontend</dt><dd id="systemFrontendVersion">0.8.7</dd></div>
-                <div><dt>Backend</dt><dd id="systemBackendVersion">—</dd></div>
-                <div><dt>Python</dt><dd id="systemPythonVersion">—</dd></div>
-                <div><dt>FastAPI</dt><dd id="systemFastApiVersion">—</dd></div>
-                <div><dt>SQLite</dt><dd id="systemSqliteVersion">—</dd></div>
-                <div><dt>Sistema operativo</dt><dd id="systemPlatform">—</dd></div>
-              </dl>
-            </article>
-
-            <article class="panel">
-              <div class="panel-heading"><div><span class="section-kicker">Archivio</span><h2>Database SQLite</h2><p>Percorso, dimensione e data ultima modifica.</p></div></div>
-              <dl class="system-detail-list">
-                <div><dt>File</dt><dd id="systemDbPath" class="break-value">—</dd></div>
-                <div><dt>Dimensione</dt><dd id="systemDbBytes">—</dd></div>
-                <div><dt>Ultima modifica</dt><dd id="systemDbModified">—</dd></div>
-                <div><dt>Journal mode</dt><dd id="systemJournalMode">—</dd></div>
-                <div><dt>Foreign keys</dt><dd id="systemForeignKeys">—</dd></div>
-              </dl>
-            </article>
-          </div>
-
-          <article class="panel table-panel">
-            <div class="panel-heading"><div><span class="section-kicker">Volumi</span><h2>Conteggi tecnici</h2><p>Numero di record nelle principali entità ZoneMind.</p></div></div>
-            <div class="table-wrapper"><table><thead><tr><th>Entità</th><th>Tabella</th><th>Record</th></tr></thead><tbody id="systemCountsBody"></tbody></table></div>
-          </article>
-
-          <article class="panel system-note">
-            <div><span class="section-kicker">Sicurezza operativa</span><h2>Nessuna funzione distruttiva</h2><p>La System Console non cancella dati, non ricrea il database e non modifica la configurazione. L'esportazione produce soltanto un file JSON diagnostico.</p></div>
-          </article>
-        </section>
-
-        <section id="storesPage" class="admin-page" hidden>
-          <div class="dashboard-heading">
-            <div><span class="section-kicker">Anagrafica</span><h2>Gestione negozi</h2><p>Crea e aggiorna i negozi disponibili in ZoneMind.</p></div>
-            <button id="newStoreButton" type="button">Nuovo negozio</button>
-          </div>
-          <div class="stores-layout">
-            <article class="panel">
-              <div class="panel-heading"><div><span class="section-kicker">Dettaglio</span><h2 id="storeFormTitle">Nuovo negozio</h2><p>Il codice non è modificabile dopo la creazione.</p></div></div>
-              <form id="storeForm" class="store-form">
-                <label>Codice<input id="storeCodeInput" maxlength="30" required placeholder="STORE002"></label>
-                <label>Nome<input id="storeNameInput" maxlength="120" required placeholder="Milano Duomo"></label>
-                <label>Città<input id="storeCityInput" maxlength="120" placeholder="Milano"></label>
-                <label>Paese<input id="storeCountryInput" maxlength="3" placeholder="IT"></label>
-                <label class="checkbox-row"><input id="storeActiveInput" type="checkbox" checked> Negozio attivo</label>
-                <div class="form-actions"><button type="submit">Salva</button><button id="cancelStoreButton" class="ghost-button" type="button">Annulla</button></div>
-              </form>
-              <div id="storeMessage" class="message" hidden></div>
-            </article>
-            <article class="panel table-panel">
-              <div class="panel-heading table-toolbar"><div><span class="section-kicker">Elenco</span><h2>Negozi configurati</h2><p>Seleziona una riga per modificarne i dati.</p></div><input id="storeSearch" type="search" placeholder="Cerca negozio"></div>
-              <div class="table-wrapper"><table><thead><tr><th>Codice</th><th>Nome</th><th>Città</th><th>Paese</th><th>Articoli</th><th>Mappati</th><th>Stato</th></tr></thead><tbody id="storeTableBody"></tbody></table></div>
-              <div id="storeEmpty" class="table-empty" hidden>Nessun negozio trovato.</div>
-            </article>
-          </div>
-        </section>
+        <section id="systemPage" class="admin-page" hidden><div class="dashboard-heading"><div><span class="section-kicker">Diagnostica</span><h2>System Console</h2><p>Stato tecnico dell'applicazione e del database.</p></div><div class="row-actions"><button id="systemExportButton" type="button">Esporta diagnostica</button><button id="systemRefreshButton" type="button" class="ghost-button">Aggiorna</button></div></div><div class="system-kpis"><article class="panel"><small>API</small><strong id="systemApiStatus">Verifica…</strong><span id="systemApiVersion">—</span></article><article class="panel"><small>Database</small><strong id="systemDbStatus">Verifica…</strong><span id="systemDbSize">—</span></article><article class="panel"><small>Integrità</small><strong id="systemIntegrity">Verifica…</strong><span>PRAGMA integrity_check</span></article><article class="panel"><small>Ora server</small><strong id="systemServerTime">—</strong><span id="systemUptimeNote">lettura in tempo reale</span></article></div><div class="system-grid"><article class="panel"><div class="panel-heading"><div><span class="section-kicker">Applicazione</span><h2>Versioni e runtime</h2><p>Informazioni utili per troubleshooting.</p></div></div><dl class="system-detail-list"><div><dt>Frontend</dt><dd id="systemFrontendVersion">0.9.0</dd></div><div><dt>Backend</dt><dd id="systemBackendVersion">—</dd></div><div><dt>Python</dt><dd id="systemPythonVersion">—</dd></div><div><dt>FastAPI</dt><dd id="systemFastApiVersion">—</dd></div><div><dt>SQLite</dt><dd id="systemSqliteVersion">—</dd></div><div><dt>Sistema operativo</dt><dd id="systemPlatform">—</dd></div></dl></article><article class="panel"><div class="panel-heading"><div><span class="section-kicker">Archivio</span><h2>Database SQLite</h2><p>Percorso, dimensione e data ultima modifica.</p></div></div><dl class="system-detail-list"><div><dt>File</dt><dd id="systemDbPath" class="break-value">—</dd></div><div><dt>Dimensione</dt><dd id="systemDbBytes">—</dd></div><div><dt>Ultima modifica</dt><dd id="systemDbModified">—</dd></div><div><dt>Journal mode</dt><dd id="systemJournalMode">—</dd></div><div><dt>Foreign keys</dt><dd id="systemForeignKeys">—</dd></div></dl></article></div><article class="panel table-panel"><div class="panel-heading"><div><span class="section-kicker">Volumi</span><h2>Conteggi tecnici</h2><p>Numero di record nelle principali entità ZoneMind.</p></div></div><div class="table-wrapper"><table><thead><tr><th>Entità</th><th>Tabella</th><th>Record</th></tr></thead><tbody id="systemCountsBody"></tbody></table></div></article><article class="panel system-note"><div><span class="section-kicker">Sicurezza operativa</span><h2>Nessuna funzione distruttiva</h2><p>La System Console non cancella dati, non ricrea il database e non modifica la configurazione.</p></div></article></section>
+        <section id="storesPage" class="admin-page" hidden><div class="dashboard-heading"><div><span class="section-kicker">Anagrafica</span><h2>Gestione negozi</h2><p>Crea e aggiorna i negozi disponibili in ZoneMind.</p></div><button id="newStoreButton" type="button">Nuovo negozio</button></div><div class="stores-layout"><article class="panel"><div class="panel-heading"><div><span class="section-kicker">Dettaglio</span><h2 id="storeFormTitle">Nuovo negozio</h2><p>Il codice non è modificabile dopo la creazione.</p></div></div><form id="storeForm" class="store-form"><label>Codice<input id="storeCodeInput" maxlength="30" required placeholder="STORE002"></label><label>Nome<input id="storeNameInput" maxlength="120" required placeholder="Milano Duomo"></label><label>Città<input id="storeCityInput" maxlength="120" placeholder="Milano"></label><label>Paese<input id="storeCountryInput" maxlength="3" placeholder="IT"></label><label class="checkbox-row"><input id="storeActiveInput" type="checkbox" checked> Negozio attivo</label><div class="form-actions"><button type="submit">Salva</button><button id="cancelStoreButton" class="ghost-button" type="button">Annulla</button></div></form><div id="storeMessage" class="message" hidden></div></article><article class="panel table-panel"><div class="panel-heading table-toolbar"><div><span class="section-kicker">Elenco</span><h2>Negozi configurati</h2><p>Seleziona una riga per modificarne i dati.</p></div><input id="storeSearch" type="search" placeholder="Cerca negozio"></div><div class="table-wrapper"><table><thead><tr><th>Codice</th><th>Nome</th><th>Città</th><th>Paese</th><th>Articoli</th><th>Mappati</th><th>Stato</th></tr></thead><tbody id="storeTableBody"></tbody></table></div><div id="storeEmpty" class="table-empty" hidden>Nessun negozio trovato.</div></article></div></section>
       </main>
     </div>
   </div>
-
   <script type="module" src="./admin.js"></script>
 </body>
 </html>
