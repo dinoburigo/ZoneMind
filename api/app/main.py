@@ -14,11 +14,15 @@ from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from .database import DB_PATH, get_connection, initialize_database
+from .dwh_catalog import register_dwh_catalog_routes
+from .dwh_stores import register_dwh_store_routes
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 PUBLIC_DIR = BASE_DIR / "public"
 APP_VERSION = "0.9.0-layout-editor"
 app = FastAPI(title="ZoneMind API", version=APP_VERSION)
+register_dwh_catalog_routes(app)
+register_dwh_store_routes(app)
 
 class StorePayload(BaseModel):
     storeCode: str = Field(min_length=1, max_length=30)

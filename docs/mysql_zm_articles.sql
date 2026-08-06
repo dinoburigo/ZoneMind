@@ -1,0 +1,137 @@
+-- ZoneMind 1.1 - Catalogo SKU/EAN da DWH
+-- Target MySQL per vista V_ZONEMIND_ARTICLES
+
+CREATE TABLE IF NOT EXISTS ZM_ARTICLES
+(
+    ID_ARTICLE      BIGINT NOT NULL AUTO_INCREMENT,
+    COD_STAGIONE    VARCHAR(10) NOT NULL,
+    COD_NEGOZIO     VARCHAR(20) NOT NULL,
+    COD_ARTICOLO    VARCHAR(30) NOT NULL,
+    COD_EAN         VARCHAR(30) NOT NULL,
+    COD_COLORE      VARCHAR(20),
+    COD_TAGLIA      VARCHAR(20),
+    DTA_CREAZIONE   DATETIME DEFAULT CURRENT_TIMESTAMP,
+    DTA_UPDATE      DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (ID_ARTICLE),
+    UNIQUE KEY UK_ZM_ARTICLE (COD_STAGIONE, COD_NEGOZIO, COD_EAN),
+    KEY IDX_ZM_ARTICLE_01 (COD_NEGOZIO),
+    KEY IDX_ZM_ARTICLE_02 (COD_ARTICOLO),
+    KEY IDX_ZM_ARTICLE_03 (COD_EAN)
+);
+
+CREATE TABLE IF NOT EXISTS ZM_LOAD_LOG
+(
+    ID_LOAD          BIGINT AUTO_INCREMENT PRIMARY KEY,
+    LOAD_TYPE        VARCHAR(30),
+    START_TIME       DATETIME,
+    END_TIME         DATETIME,
+    ROWS_INSERTED    INT DEFAULT 0,
+    ROWS_UPDATED     INT DEFAULT 0,
+    STATUS           VARCHAR(20),
+    MESSAGE          VARCHAR(500)
+);
+
+DELIMITER $$
+
+CREATE PROCEDURE PRC_ZONEMIND_ARTICLES_FULL()
+BEGIN
+    DECLARE v_start DATETIME DEFAULT NOW();
+    DECLARE v_rows INT DEFAULT 0;
+
+    TRUNCATE TABLE ZM_ARTICLES;
+
+    INSERT INTO ZM_ARTICLES
+    (
+        COD_STAGIONE,
+        COD_NEGOZIO,
+        COD_ARTICOLO,
+        COD_EAN,
+        COD_COLORE,
+        COD_TAGLIA
+    )
+    SELECT
+        COD_STAGIONE,
+        COD_NEGOZIO,
+        COD_ARTICOLO,
+        COD_EAN,
+        COD_COLORE,
+        COD_TAGLIA
+    FROM V_ZONEMIND_ARTICLES;
+
+    SET v_rows = ROW_COUNT();
+
+    INSERT INTO ZM_LOAD_LOG
+    (
+        LOAD_TYPE,
+        START_TIME,
+        END_TIME,
+        ROWS_INSERTED,
+        ROWS_UPDATED,
+        STATUS,
+        MESSAGE
+    )
+    VALUES
+    (
+        'ARTICLES_FULL',
+        v_start,
+        NOW(),
+        v_rows,
+        0,
+        'OK',
+        'Full reload completato da V_ZONEMIND_ARTICLES'
+    );
+END$$
+
+CREATE PROCEDURE PRC_ZONEMIND_ARTICLES_SYNC()
+BEGIN
+    DECLARE v_start DATETIME DEFAULT NOW();
+    DECLARE v_affected INT DEFAULT 0;
+
+    INSERT INTO ZM_ARTICLES
+    (
+        COD_STAGIONE,
+        COD_NEGOZIO,
+        COD_ARTICOLO,
+        COD_EAN,
+        COD_COLORE,
+        COD_TAGLIA
+    )
+    SELECT
+        COD_STAGIONE,
+        COD_NEGOZIO,
+        COD_ARTICOLO,
+        COD_EAN,
+        COD_COLORE,
+        COD_TAGLIA
+    FROM V_ZONEMIND_ARTICLES
+    ON DUPLICATE KEY UPDATE
+        COD_ARTICOLO = VALUES(COD_ARTICOLO),
+        COD_COLORE   = VALUES(COD_COLORE),
+        COD_TAGLIA   = VALUES(COD_TAGLIA),
+        DTA_UPDATE   = CURRENT_TIMESTAMP;
+
+    SET v_affected = ROW_COUNT();
+
+    INSERT INTO ZM_LOAD_LOG
+    (
+        LOAD_TYPE,
+        START_TIME,
+        END_TIME,
+        ROWS_INSERTED,
+        ROWS_UPDATED,
+        STATUS,
+        MESSAGE
+    )
+    VALUES
+    (
+        'ARTICLES_SYNC',
+        v_start,
+        NOW(),
+        v_affected,
+        0,
+        'OK',
+        'Upsert completato da V_ZONEMIND_ARTICLES. ROW_COUNT MySQL include insert e update.'
+    );
+END$$
+
+DELIMITER ;
