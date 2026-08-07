@@ -103,7 +103,7 @@ function registerPwa(){
  if(!('serviceWorker' in navigator))return;
  window.addEventListener('beforeinstallprompt',event=>{event.preventDefault();deferredInstallPrompt=event;$('installAppButton').hidden=false});
  window.addEventListener('appinstalled',()=>{deferredInstallPrompt=null;$('installAppButton').hidden=true;toast('ZoneMind installato sul dispositivo')});
- navigator.serviceWorker.register('/service-worker.js',{scope:'/'}).then(registration=>{
+ navigator.serviceWorker.register('/mapper/service-worker.js',{ scope: '/mapper/' }).then(registration=>{	 
    if(registration.waiting)showPwaUpdate(registration.waiting);
    registration.addEventListener('updatefound',()=>{const worker=registration.installing;if(!worker)return;worker.addEventListener('statechange',()=>{if(worker.state==='installed'&&navigator.serviceWorker.controller)showPwaUpdate(worker)})});
  }).catch(error=>console.warn('Service worker non registrato:',error));
