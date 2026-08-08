@@ -314,69 +314,7 @@ def update_layout_for_store(store: str, layout_id: str, layout: dict[str, Any] =
         raise HTTPException(400, str(error)) from error
     return {**result, "status": "UPDATED"}
 
-@app.delete("/api/admin/stores/{store}/layouts/{layout_id}")
-def delete_layout(store: str, layout_id: str) -> dict[str, Any]:
-
-    with get_connection() as connection:
-
-        layout = connection.execute(
-            """
-            SELECT active_flag
-            FROM layouts
-            WHERE store_code = ?
-              AND layout_id = ?
-            """,
-            (store, layout_id)
-        ).fetchone()
-
-        if layout is None:
-            raise HTTPException(
-                404,
-                "Layout non trovato"
-            )
-
-        if layout["active_flag"]:
-            connection.execute(
-                """
-                UPDATE layouts
-                SET active_flag = 0,
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE store_code = ?
-                  AND layout_id = ?
-                """,
-                (store, layout_id)
-            )
-
-        connection.execute(
-            """
-            DELETE FROM article_zone_assignments
-            WHERE store_code = ?
-              AND layout_id = ?
-            """,
-            (store, layout_id)
-        )
-
-        cursor = connection.execute(
-            """
-            DELETE FROM layouts
-            WHERE store_code = ?
-              AND layout_id = ?
-            """,
-            (store, layout_id)
-        )
-
-        if cursor.rowcount == 0:
-            raise HTTPException(
-                404,
-                "Layout non trovato"
-            )
-
-    return {
-        "layoutId": layout_id,
-        "status": "DELETED"
-    }
-    
-@app.patch("/api/admin/stores/{store}/layouts/{layout_id}/active")    
+@app.patch("/api/admin/stores/{store}/layouts/{layout_id}/active")
 def set_layout_active(store: str, layout_id: str, payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
     active = bool(payload.get("active"))
     with get_connection() as connection:

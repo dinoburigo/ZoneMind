@@ -1,7 +1,7 @@
-import { fetchJson, postFile } from "../assets/js/components/api-client.js";
-import { debounce, escapeHtml, formatDate } from "../assets/js/components/formatters.js";
-import { initializeShell } from "../assets/js/components/app-shell.js";
-import { showToast } from "../assets/js/components/toast.js";
+import { fetchJson, postFile } from "../mapper/assets/js/components/api-client.js";
+import { debounce, escapeHtml, formatDate } from "../mapper/assets/js/components/formatters.js";
+import { initializeShell } from "../mapper/assets/js/components/app-shell.js";
+import { showToast } from "../mapper/assets/js/components/toast.js";
 
 const AUTO_REFRESH_MS = 30000;
 const FRONTEND_VERSION = "0.9.2";
@@ -368,10 +368,29 @@ function renderStoreTable() {
   const query = (elements.storeSearch?.value || "").trim().toLowerCase();
   const rows = storesCache.filter(store => [store.storeCode, store.storeName, store.city, store.countryCode].join(" ").toLowerCase().includes(query));
   elements.storeTableBody.innerHTML = rows.map(store =>
-    `<tr class="store-row" data-store-code="${escapeHtml(store.storeCode)}"><td><strong>${escapeHtml(store.storeCode)}</strong></td><td>${escapeHtml(store.storeName || "")}</td><td>${escapeHtml(store.city || "-")}</td><td>${escapeHtml(store.countryCode || "-")}</td><td>${Number(store.articleCount || 0).toLocaleString("it-IT")}</td><td>${Number(store.assignmentCount || 0).toLocaleString("it-IT")}</td><td><span class="status-pill ${store.active ? "active" : "inactive"}">${store.active ? "Attivo" : "Disattivo"}</span></td></tr>`
+    `<tr class="store-row" data-store-code="${escapeHtml(store.storeCode)}"><td><strong>${escapeHtml(store.storeCode)}</strong></td><td>${escapeHtml(store.storeName || "")}</td><td>${escapeHtml(store.city || "-")}</td><td>${escapeHtml(store.countryCode || "-")}</td><td>${Number(store.articleCount || 0).toLocaleString("it-IT")}</td><td>${Number(store.assignmentCount || 0).toLocaleString("it-IT")}</td><td><span class="status-pill ${store.active ? "active" : "inactive"}">${store.active ? "Attivo" : "Disattivo"}</span></td>
+<td>
+  ${
+    store.storeCode.startsWith("STORE")
+      ? `
+        <button
+          class="danger-button delete-store"
+          type="button"
+          data-store-code="${escapeHtml(store.storeCode)}">
+          Elimina
+        </button>
+      `
+      : ""
+  }
+</td>
+	</tr>`
   ).join("");
   if (elements.storeEmpty) elements.storeEmpty.hidden = rows.length > 0;
   elements.storeTableBody.querySelectorAll(".store-row").forEach(row => row.addEventListener("click", () => editStore(row.dataset.storeCode)));
+  elements.storeTableBody.querySelectorAll(".delete-store").forEach(button => button.addEventListener("click", event => {
+    event.stopPropagation();
+    deleteStore(button.dataset.storeCode);
+  }));
 }
 function resetStoreForm() {
   elements.storeForm.reset();
@@ -410,6 +429,26 @@ async function saveStore(event) {
   } catch (error) {
     showMessage(elements.storeMessage, error.message, "error");
     showToast(error.message, "error");
+  }
+}
+
+async function deleteStore(storeCode) {
+  const code = String(storeCode || "").trim().toUpperCase();
+  if (!code) return;
+  const store = storesCache.find(item => item.storeCode === code);
+  const label = store ? `${store.storeCode} - ${store.storeName || ""}`.trim() : code;
+  const confirmed = window.confirm(`Eliminare il negozio ${label}?\n\nSaranno rimossi anche catalogo, layout, associazioni e import collegati al negozio.`);
+  if (!confirmed) return;
+  try {
+    await fetchJson(`/api/admin/stores/${encodeURIComponent(code)}`, { method: "DELETE" });
+    showToast("Negozio eliminato.", "success");
+    showMessage(elements.storeMessage, "Negozio eliminato.", "success");
+    if (currentStore === code) currentStore = null;
+    resetStoreForm();
+    await loadStores();
+  } catch (error) {
+    showToast(error.message, "error");
+    showMessage(elements.storeMessage, error.message, "error");
   }
 }
 
@@ -475,11 +514,51 @@ function renderLayouts(layouts) {
       : "<span>Nessun layout attivo</span>";
   }
   elements.layoutTableBody.innerHTML = layouts.map(item =>
-    `<tr><td><strong>${escapeHtml(item.layoutName || item.layoutCode || "-")}</strong><small>${escapeHtml(item.description || item.layoutId)}</small></td><td>${Number(item.zoneCount || 0)}</td><td>${escapeHtml(item.imageName || "-")}</td><td>${formatDate(item.updatedAt)}</td><td><label class="switch"><input type="checkbox" class="layout-active-toggle" data-id="${escapeHtml(item.layoutId)}" ${item.active ? "checked" : ""}><span></span></label></td><td><div class="row-actions"><button class="ghost-button edit-layout" data-id="${escapeHtml(item.layoutId)}" type="button">Modifica</button><button class="ghost-button preview-layout" data-id="${escapeHtml(item.layoutId)}" type="button">Zone</button><a class="button-link" href="/api/admin/stores/${encodeURIComponent(currentStore)}/layouts/${encodeURIComponent(item.layoutId)}/download">Scarica</a></div></td></tr>`
+    `<tr><td><strong>${escapeHtml(item.layoutName || item.layoutCode || "-")}</strong><small>${escapeHtml(item.description || item.layoutId)}</small></td><td>${Number(item.zoneCount || 0)}</td><td>${escapeHtml(item.imageName || "-")}</td><td>${formatDate(item.updatedAt)}</td><td><label class="switch"><input type="checkbox" class="layout-active-toggle" data-id="${escapeHtml(item.layoutId)}" ${item.active ? "checked" : ""}><span></span></label></td><td>
+	<div class="row-actions">
+
+  <button
+    class="ghost-button edit-layout"
+    data-id="${escapeHtml(item.layoutId)}"
+    type="button">
+    Modifica
+  </button>
+
+  <button
+    class="ghost-button preview-layout"
+    data-id="${escapeHtml(item.layoutId)}"
+    type="button">
+    Zone
+  </button>
+
+  <a
+    class="button-link"
+    href="/api/admin/stores/${encodeURIComponent(currentStore)}/layouts/${encodeURIComponent(item.layoutId)}/download">
+    Scarica
+  </a>
+
+  <button
+    class="danger-button delete-layout"
+    data-id="${escapeHtml(item.layoutId)}"
+    ${item.active ? "disabled" : ""}
+    type="button">
+    Elimina
+  </button>
+
+</div>
+</td></tr>`
   ).join("");
   elements.layoutTableEmpty.hidden = layouts.length > 0;
   elements.layoutTableBody.querySelectorAll(".edit-layout").forEach(button => button.addEventListener("click", () => editLayout(button.dataset.id)));
   elements.layoutTableBody.querySelectorAll(".preview-layout").forEach(button => button.addEventListener("click", () => previewLayout(button.dataset.id)));
+elements.layoutTableBody
+  .querySelectorAll(".delete-layout")
+  .forEach(button =>
+    button.addEventListener(
+      "click",
+      () => deleteLayout(button.dataset.id)
+    )
+  );  
   elements.layoutTableBody.querySelectorAll(".layout-active-toggle").forEach(input => input.addEventListener("change", () => toggleLayoutActive(input.dataset.id, input.checked)));
 }
 function setCanvasEmptyVisible(visible) {
@@ -761,6 +840,42 @@ async function toggleLayoutActive(layoutId, active) {
   } catch (error) {
     showToast(error.message, "error");
     await loadLayoutsPage();
+  }
+}
+async function deleteLayout(layoutId) {
+
+  const confirmed = window.confirm(
+    "Eliminare il layout selezionato?"
+  );
+
+  if (!confirmed) {
+    return;
+  }
+
+  try {
+
+    await fetchJson(
+      `/api/admin/stores/${encodeURIComponent(currentStore)}/layouts/${encodeURIComponent(layoutId)}`,
+      {
+        method: "DELETE"
+      }
+    );
+
+    showToast(
+      "Layout eliminato.",
+      "success"
+    );
+
+    await loadLayoutsPage();
+    await loadDashboard({ silent: true });
+
+  } catch (error) {
+
+    showToast(
+      error.message,
+      "error"
+    );
+
   }
 }
 async function previewLayout(layoutId) {
